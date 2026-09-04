@@ -1,0 +1,43 @@
+[
+  {
+    "key": "cmd+l",
+    "command": "workbench.action.toggleAuxiliaryBar",
+    "when": "!terminalFocus"
+  },
+  {
+    "key": "cmd+shift+l",
+    "command": "workbench.action.openAuxiliaryBar"
+  },
+  {
+    "key": "cmd+i",
+    "command": "workbench.action.togglePanel"
+  },
+  {
+    "key": "cmd+k cmd+t",
+    "command": "workbench.action.createTerminal",
+    "args": {
+      "profileName": "Hermes"
+    }
+  },
+  {
+    "key": "cmd+j",
+    "command": "workbench.action.togglePanel",
+    "when": "!panelFocus"
+  },
+  {
+    "key": "cmd+shift+j",
+    "command": "workbench.action.terminal.toggleTerminal"
+  },
+  {
+    "key": "cmd+l",
+    "command": "-aichat.newchataction"
+  },
+  {
+    "key": "cmd+k",
+    "command": "-aipopup.action.modal.generate"
+  },
+  {
+    "key": "cmd+l",
+    "command": "claude.openChat"
+  }
+]

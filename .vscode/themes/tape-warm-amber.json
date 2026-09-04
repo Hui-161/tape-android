@@ -1,0 +1,352 @@
+{
+  "_comment": "Tape warm-amber TextMate theme. Token colors mirror the runtime palette in app/src/main/java/com/tape/measure/ui/theme/Color.kt so the editor and the app feel like the same product. JSON doesn't support comments; VS Code ignores _comment keys.",
+  "name": "Tape Warm Amber",
+  "type": "dark",
+  "semanticHighlighting": true,
+  "semanticTokenColorCustomizations": {
+    "enabled": true
+  },
+  "colors": {
+    "editor.background": "#0F0E0C",
+    "editor.foreground": "#F4ECDF",
+    "editorGutter.background": "#0F0E0C",
+    "editor.lineHighlightBackground": "#1F1C18",
+    "editor.lineHighlightBorder": "#E89B3C",
+    "editor.selectionBackground": "#E89B3C40",
+    "editor.inactiveSelectionBackground": "#E89B3C25",
+    "editor.wordHighlightBackground": "#E89B3C20",
+    "editor.wordHighlightStrongBackground": "#E89B3C35",
+    "editor.findMatchBackground": "#E89B3C50",
+    "editor.findMatchHighlightBackground": "#E89B3C30",
+    "editorCursor.foreground": "#FFC857",
+    "editorIndentGuide.background": "#1F1C18",
+    "editorIndentGuide.activeBackground": "#3A352E",
+    "editorWhitespace.foreground": "#3A352E",
+    "editorBracketMatch.background": "#E89B3C30",
+    "editorBracketMatch.border": "#E89B3C",
+
+    "terminal.background": "#0F0E0C",
+    "terminal.foreground": "#F4ECDF",
+    "terminalCursor.foreground": "#FFC857",
+    "terminal.selectionBackground": "#E89B3C40",
+    "terminal.border": "#6E6557",
+    "terminal.tab.activeBorder": "#E89B3C",
+
+    "panel.background": "#0F0E0C",
+    "panel.border": "#6E6557",
+    "panelTitle.activeBorder": "#E89B3C",
+    "panelTitle.activeForeground": "#E89B3C",
+    "panelTitle.inactiveForeground": "#6E6557",
+
+    "sideBar.background": "#0A0907",
+    "sideBar.border": "#6E6557",
+    "sideBarTitle.foreground": "#E89B3C",
+    "sideBar.foreground": "#B6A88F",
+
+    "activityBar.background": "#0A0907",
+    "activityBar.border": "#6E6557",
+    "activityBar.activeBorder": "#E89B3C",
+    "activityBar.foreground": "#B6A88F",
+    "activityBar.inactiveForeground": "#6E6557",
+    "activityBarBadge.background": "#E89B3C",
+    "activityBarBadge.foreground": "#0F0E0C",
+
+    "auxiliaryBar.background": "#0A0907",
+    "auxiliaryBar.border": "#6E6557",
+
+    "titleBar.activeBackground": "#0A0907",
+    "titleBar.border": "#6E6557",
+    "titleBar.inactiveBackground": "#0A0907",
+
+    "tab.activeBackground": "#0F0E0C",
+    "tab.inactiveBackground": "#0A0907",
+    "tab.hoverBackground": "#1F1C18",
+    "tab.border": "#3A352E",
+    "tab.activeBorder": "#E89B3C",
+    "tab.activeBorderTop": "#E89B3C",
+    "tab.activeForeground": "#F4ECDF",
+    "tab.inactiveForeground": "#B6A88F",
+    "tab.hoverBorder": "#3A352E",
+    "tab.hoverForeground": "#F4ECDF",
+    "tab.unfocusedActiveBorder": "#3A352E",
+    "tab.unfocusedInactiveBorder": "#3A352E",
+
+    "editorGroup.border": "#6E6557",
+    "editorGroupHeader.tabsBackground": "#0A0907",
+    "editorGroupHeader.tabsBorder": "#3A352E",
+    "editorGroupHeader.noTabsBackground": "#0F0E0C",
+    "editorGroup.emptyBackground": "#0F0E0C",
+
+    "focusBorder": "#E89B3C",
+    "widget.border": "#3A352E",
+    "widget.shadow": "#00000080",
+    "input.background": "#1F1C18",
+    "input.border": "#E89B3C",
+    "input.foreground": "#F4ECDF",
+    "input.placeholderForeground": "#6E6557",
+    "dropdown.background": "#1F1C18",
+    "dropdown.border": "#3A352E",
+    "dropdown.foreground": "#F4ECDF",
+    "menu.background": "#1F1C18",
+    "menu.border": "#3A352E",
+    "menu.foreground": "#F4ECDF",
+    "menu.selectionBackground": "#E89B3C25",
+    "menu.selectionForeground": "#FFC857",
+    "quickInput.background": "#1F1C18",
+    "quickInput.foreground": "#F4ECDF",
+    "quickInput.titleBackground": "#0F0E0C",
+    "pickerGroup.border": "#E89B3C",
+    "pickerGroup.foreground": "#E89B3C",
+    "pickerGroup.background": "#1F1C18",
+
+    "notebook.cellBorder": "#3A352E",
+    "notebook.activeCellBorder": "#E89B3C",
+    "notebook.inactiveSelectedCellBorder": "#3A352E",
+
+    "scrollbarSlider.background": "#E89B3C30",
+    "scrollbarSlider.hoverBackground": "#E89B3C50",
+    "scrollbarSlider.activeBackground": "#E89B3C70",
+
+    "list.activeSelectionBackground": "#E89B3C25",
+    "list.activeSelectionForeground": "#FFC857",
+    "list.inactiveSelectionBackground": "#E89B3C15",
+    "list.hoverBackground": "#1F1C18",
+    "list.hoverForeground": "#F4ECDF",
+    "list.focusBackground": "#E89B3C25",
+    "list.focusForeground": "#FFC857",
+    "list.focusOutline": "#E89B3C",
+    "list.highlightForeground": "#FFC857",
+    "list.dropBackground": "#E89B3C30",
+
+    "statusBar.background": "#0A0907",
+    "statusBar.border": "#6E6557",
+    "statusBar.foreground": "#B6A88F",
+    "statusBar.debuggingBackground": "#E89B3C",
+    "statusBar.debuggingForeground": "#0F0E0C",
+    "statusBar.noFolderBackground": "#0A0907",
+    "statusBarItem.activeBackground": "#E89B3C25",
+    "statusBarItem.hoverBackground": "#E89B3C15",
+    "statusBarItem.prominentBackground": "#3A352E",
+    "statusBarItem.prominentForeground": "#FFC857",
+    "statusBarItem.prominentHoverBackground": "#E89B3C35",
+    "statusBarItem.errorBackground": "#D16A6A",
+    "statusBarItem.errorForeground": "#0F0E0C",
+    "statusBarItem.warningBackground": "#E89B3C",
+    "statusBarItem.warningForeground": "#0F0E0C",
+
+    "breadcrumb.foreground": "#B6A88F",
+    "breadcrumb.focusForeground": "#FFC857",
+    "breadcrumb.activeSelectionForeground": "#FFC857",
+    "breadcrumbPicker.background": "#1F1C18",
+
+    "editorGutter.modifiedBackground": "#E89B3C",
+    "editorGutter.addedBackground": "#7BB87B",
+    "editorGutter.deletedBackground": "#D16A6A",
+    "editorGutter.commentRangeForeground": "#6E6557",
+    "editor.codeLensForeground": "#6E6557",
+
+    "diffEditor.insertedTextBackground": "#7BB87B30",
+    "diffEditor.removedTextBackground": "#D16A6A30",
+    "diffEditor.diagonalFill": "#3A352E",
+    "diffEditor.insertedLineBackground": "#7BB87B15",
+    "diffEditor.removedLineBackground": "#D16A6A15",
+
+    "badge.background": "#E89B3C",
+    "badge.foreground": "#0F0E0C",
+
+    "gitDecoration.modifiedResourceForeground": "#E89B3C",
+    "gitDecoration.deletedResourceForeground": "#D16A6A",
+    "gitDecoration.untrackedResourceForeground": "#7BB87B",
+    "gitDecoration.ignoredResourceForeground": "#6E6557",
+    "gitDecoration.conflictingResourceForeground": "#D16A6A"
+  },
+  "tokenColors": [
+    {
+      "_comment": "Kotlin keywords, control flow, modifiers",
+      "name": "Keywords",
+      "scope": [
+        "keyword",
+        "keyword.control",
+        "keyword.control.flow",
+        "keyword.control.as",
+        "keyword.control.conditional",
+        "keyword.control.repeat",
+        "keyword.control.return",
+        "keyword.operator",
+        "storage.modifier",
+        "storage.type",
+        "storage.type.kotlin"
+      ],
+      "settings": { "foreground": "#E89B3C", "fontStyle": "bold" }
+    },
+    {
+      "_comment": "Strings, characters, regex",
+      "name": "Strings",
+      "scope": [
+        "string",
+        "string.quoted",
+        "string.quoted.double",
+        "string.quoted.single",
+        "string.template",
+        "string.regexp",
+        "constant.character.escape"
+      ],
+      "settings": { "foreground": "#FFC857" }
+    },
+    {
+      "_comment": "Numbers, booleans, null, this/super (literal-ish values)",
+      "name": "Constants & literals",
+      "scope": [
+        "constant",
+        "constant.numeric",
+        "constant.numeric.integer",
+        "constant.numeric.float",
+        "constant.numeric.hex",
+        "constant.language",
+        "constant.language.boolean",
+        "constant.language.null",
+        "constant.language.undefined",
+        "constant.other",
+        "variable.language"
+      ],
+      "settings": { "foreground": "#FFC857" }
+    },
+    {
+      "name": "Comments",
+      "scope": [
+        "comment",
+        "comment.line",
+        "comment.block",
+        "comment.documentation",
+        "punctuation.definition.comment"
+      ],
+      "settings": { "foreground": "#6E6557", "fontStyle": "italic" }
+    },
+    {
+      "_comment": "Function/method names and invocations",
+      "name": "Functions",
+      "scope": [
+        "entity.name.function",
+        "entity.name.function.kotlin",
+        "support.function",
+        "support.function.builtin",
+        "meta.function-call"
+      ],
+      "settings": { "foreground": "#F4ECDF", "fontStyle": "bold" }
+    },
+    {
+      "_comment": "Function parameters and local val/var declarations — this is what you asked to distinguish",
+      "name": "Variables & parameters",
+      "scope": [
+        "variable",
+        "variable.other",
+        "variable.parameter",
+        "variable.parameter.kotlin",
+        "meta.parameter",
+        "meta.definition.variable"
+      ],
+      "settings": { "foreground": "#E89B3C" }
+    },
+    {
+      "_comment": "Constants from companion object, top-level const val, UPPER_SNAKE_CASE",
+      "name": "Constants (UPPER_SNAKE_CASE)",
+      "scope": [
+        "variable.other.constant",
+        "variable.other.constant.kotlin"
+      ],
+      "settings": { "foreground": "#FFC857", "fontStyle": "bold" }
+    },
+    {
+      "_comment": "Type / class / interface / object declarations and references",
+      "name": "Types & classes",
+      "scope": [
+        "entity.name.type",
+        "entity.name.type.class",
+        "entity.name.type.interface",
+        "entity.name.type.enum",
+        "entity.name.type.object",
+        "entity.name.type.typealias",
+        "entity.name.type.kotlin",
+        "support.class",
+        "support.type",
+        "support.type.kotlin"
+      ],
+      "settings": { "foreground": "#FFC857", "fontStyle": "bold" }
+    },
+    {
+      "_comment": "Property references (e.g. Color.kt val AmberTop)",
+      "name": "Properties",
+      "scope": [
+        "variable.other.property",
+        "variable.other.property.kotlin",
+        "support.other.property"
+      ],
+      "settings": { "foreground": "#B6A88F" }
+    },
+    {
+      "_comment": "Composable annotations, @Preview, @Composable",
+      "name": "Annotations & decorators",
+      "scope": [
+        "meta.annotation",
+        "meta.decorator",
+        "punctuation.definition.annotation",
+        "storage.type.annotation"
+      ],
+      "settings": { "foreground": "#D16A6A", "fontStyle": "italic" }
+    },
+    {
+      "_comment": "Imports & package declarations",
+      "name": "Imports / package",
+      "scope": [
+        "meta.import",
+        "entity.name.package",
+        "keyword.control.import"
+      ],
+      "settings": { "foreground": "#B6A88F" }
+    },
+    {
+      "name": "Punctuation",
+      "scope": [
+        "punctuation",
+        "punctuation.definition.string",
+        "punctuation.definition.block",
+        "punctuation.section",
+        "meta.brace",
+        "meta.bracket",
+        "meta.paren"
+      ],
+      "settings": { "foreground": "#B6A88F" }
+    },
+    {
+      "name": "Operators",
+      "scope": [
+        "keyword.operator",
+        "keyword.operator.assignment",
+        "keyword.operator.arithmetic",
+        "keyword.operator.comparison",
+        "keyword.operator.logical"
+      ],
+      "settings": { "foreground": "#E89B3C" }
+    },
+    {
+      "_comment": "TODO/FIXME markers inside comments",
+      "name": "TODO markers",
+      "scope": [
+        "comment.line.warning",
+        "comment.line.documentation",
+        "comment.block.documentation",
+        "markup.deleted",
+        "markup.inserted"
+      ],
+      "settings": { "foreground": "#E89B3C", "fontStyle": "italic bold" }
+    },
+    {
+      "name": "Markdown headings (in-code preview blocks)",
+      "scope": [
+        "markup.heading",
+        "entity.name.section"
+      ],
+      "settings": { "foreground": "#FFC857", "fontStyle": "bold" }
+    }
+  ]
+}

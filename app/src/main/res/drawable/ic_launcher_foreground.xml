@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  App icon foreground: amber tape-measure motif on transparent.
+  Vector, scales cleanly to all densities.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Outer tape-measure body (rounded rectangle) -->
+    <path
+        android:fillColor="#FFC857"
+        android:pathData="M30,40
+                          h48
+                          a14,14 0 0 1 14,14
+                          v8
+                          a14,14 0 0 1 -14,14
+                          h-48
+                          a14,14 0 0 1 -14,-14
+                          v-8
+                          a14,14 0 0 1 14,-14 z" />
+
+    <!-- Inner darker amber ring (housing depth) -->
+    <path
+        android:fillColor="#E89B3C"
+        android:pathData="M34,46
+                          h40
+                          a8,8 0 0 1 8,8
+                          v2
+                          a8,8 0 0 1 -8,8
+                          h-40
+                          a8,8 0 0 1 -8,-8
+                          v-2
+                          a8,8 0 0 1 8,-8 z" />
+
+    <!-- Tape strip emerging -->
+    <path
+        android:fillColor="#0F0E0C"
+        android:pathData="M52,62 h24 v6 h-24 z" />
+
+    <!-- Tick marks on tape -->
+    <path android:fillColor="#FFC857" android:pathData="M58,62 h1 v6 h-1 z" />
+    <path android:fillColor="#FFC857" android:pathData="M64,62 h1 v6 h-1 z" />
+    <path android:fillColor="#FFC857" android:pathData="M70,62 h1 v6 h-1 z" />
+
+    <!-- Small measurement line on tape -->
+    <path android:fillColor="#FFC857" android:pathData="M76,64 h2 v2 h-2 z" />
+</vector>

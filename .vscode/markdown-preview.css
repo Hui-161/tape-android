@@ -1,0 +1,101 @@
+/* Tape markdown preview styles — overrides Default Dark+ to match repo accent.
+ * Accent:    #E89B3C (orange-amber)
+ * Surfaces:  #1A1A1A editor, #15110D sidebar, #1A1612 panel
+ * Foreground:#E8DCC8 (warm cream)
+ * Borders:   #7A6248 warm brown, #E89B3C accent
+ */
+
+/* --- Tables: outer border, inner separators, header emphasis --- */
+.markdown-body table {
+  border: 1px solid #E89B3C;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: transparent;
+}
+.markdown-body table th,
+.markdown-body table td {
+  border: 1px solid #7A6248;
+  padding: 6px 12px;
+}
+.markdown-body table tr {
+  background: transparent;
+  border-top: 1px solid #7A6248;
+}
+.markdown-body table tr:nth-child(2n) {
+  background: #241D17;
+}
+.markdown-body table th {
+  background: #241D17;
+  color: #E89B3C;
+  font-weight: 600;
+  border-bottom: 2px solid #E89B3C;
+}
+
+/* --- Code blocks & inline code: accent border, warm bg --- */
+.markdown-body code {
+  color: #E89B3C;
+  background: #241D17;
+  border-radius: 3px;
+  padding: 1px 4px;
+}
+.markdown-body pre {
+  background: #15110D;
+  border: 1px solid #7A6248;
+  border-radius: 4px;
+  padding: 12px;
+}
+.markdown-body pre code {
+  color: #E8DCC8;
+  background: transparent;
+  padding: 0;
+}
+
+/* --- Blockquote --- */
+.markdown-body blockquote {
+  border-left: 3px solid #E89B3C;
+  color: #B5A48E;
+  background: #15110D;
+  padding: 6px 12px;
+  margin-left: 0;
+}
+
+/* --- Headings --- */
+.markdown-body h1,
+.markdown-body h2 {
+  color: #E89B3C;
+  border-bottom: 1px solid #7A6248;
+  padding-bottom: 4px;
+}
+.markdown-body h3,
+.markdown-body h4,
+.markdown-body h5,
+.markdown-body h6 {
+  color: #E8DCC8;
+}
+
+/* --- Links --- */
+.markdown-body a {
+  color: #E89B3C;
+  text-decoration: underline;
+  text-decoration-color: #7A6248;
+}
+
+/* --- Horizontal rule --- */
+.markdown-body hr {
+  border: none;
+  border-top: 1px solid #7A6248;
+}
+
+/* --- Lists: bullet markers in accent --- */
+.markdown-body ul li::marker {
+  color: #E89B3C;
+}
+.markdown-body ol li::marker {
+  color: #E89B3C;
+}
+
+/* --- Body text --- */
+.markdown-body {
+  color: #E8DCC8;
+  background: transparent;
+}

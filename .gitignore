@@ -1,0 +1,32 @@
+# Gradle
+.gradle/
+build/
+**/build/
+local.properties
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+*.iws
+*.ipr
+captures/
+.cxx/
+
+# Kotlin
+.kotlin/
+
+# OS noise
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Keystore (never commit)
+*.jks
+*.keystore
+release.keystore
+
+# Generated APKs (let CI / build scripts handle distribution)
+*.apk
+*.aab

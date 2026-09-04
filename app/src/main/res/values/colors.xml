@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      Palette: yellow-amber gradient on warm near-black.
+      Matches the tape-measure mental model (execution.md visual direction).
+    -->
+    <color name="ink_background">#FF0F0E0C</color>          <!-- near-black warm -->
+    <color name="ink_surface">#FF1F1C18</color>             <!-- surface dark -->
+    <color name="ink_surface_high">#FF2B2722</color>        <!-- surface raised -->
+    <color name="ink_outline">#FF3A352E</color>            <!-- divider / outline -->
+    <color name="ink_text_primary">#FFF4ECDF</color>        <!-- warm off-white -->
+    <color name="ink_text_secondary">#FFB6A88F</color>      <!-- muted warm -->
+    <color name="ink_text_disabled">#FF6E6557</color>       <!-- disabled -->
+
+    <!-- Amber gradient endpoints -->
+    <color name="amber_top">#FFFFC857</color>               <!-- bright amber-yellow -->
+    <color name="amber_bottom">#FFE89B3C</color>            <!-- deep amber -->
+
+    <!-- Status colors -->
+    <color name="confidence_high">#FF7BB87B</color>         <!-- soft green -->
+    <color name="confidence_medium">#FFE89B3C</color>       <!-- amber -->
+    <color name="confidence_low">#FFD16A6A</color>          <!-- soft red -->
+</resources>

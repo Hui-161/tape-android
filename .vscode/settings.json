@@ -1,0 +1,65 @@
+{
+  "_comment_top": "Workspace settings for the Tape repo. Theme + preview styles + Cursor-style layout — all token and workbench colors come from the theme file.",
+  "_comment_keys": "JSON does not support comments. Leading _comment_* keys are ignored by VS Code but visible to strict parsers; delete if you want a clean JSON.",
+  "_comment_layout": "Cursor-style layout: file tree left (default), editor center, Claude Code right sidebar (auxiliaryBar), Hermes terminal in the bottom panel. Default terminal profile opens Hermes directly.",
+
+  "workbench.colorTheme": "Tape Warm Amber",
+  "workbench.colorCustomizations": {
+    "_comment_cc": "Stripped — theme file owns all token and workbench colors. Add overrides here only for repo-specific accent/border tweaks.",
+    "tab.activeBorderTop": "#E89B3C",
+    "focusBorder": "#E89B3C"
+  },
+
+  "markdown.styles": ["relative:///markdown-preview.css"],
+
+  "terminal.integrated.tabs.enabled": true,
+  "terminal.integrated.tabs.showActions": "always",
+  "terminal.integrated.tabs.location": "top",
+  "terminal.integrated.profiles.osx": {
+    "Hermes": {
+      "path": "/bin/zsh",
+      "args": ["-l", "-c", "hermes chat"],
+      "overrideName": "Hermes",
+      "icon": "robot",
+      "color": "terminal.ansiBlue"
+    },
+    "Bash": {
+      "path": "/bin/zsh",
+      "args": ["-l"],
+      "overrideName": "zsh"
+    }
+  },
+  "terminal.integrated.defaultProfile.osx": "Hermes",
+
+  "editor.minimap.enabled": false,
+  "editor.scrollbar.vertical": "auto",
+  "editor.scrollbar.horizontal": "auto",
+  "editor.smoothScrolling": true,
+  "editor.cursorBlinking": "smooth",
+  "editor.cursorSmoothCaretAnimation": "on",
+  "editor.formatOnSave": true,
+  "editor.linkedEditing": true,
+  "editor.bracketPairColorization.enabled": true,
+
+  "files.autoSave": "afterDelay",
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true,
+
+  "workbench.sideBar.location": "right",
+  "workbench.secondarySideBar.location": "right",
+  "workbench.panel.defaultLocation": "bottom",
+  "workbench.auxiliaryBar.visible": true,
+  "workbench.layoutControl.enabled": true,
+
+  "chat.commandCenter.enabled": true,
+  "chat.openOnPointerWord": false,
+
+  "terminal.integrated.fontFamily": "MesloLGS NF",
+  "claudeCode.useCtrlEnterToSend": true,
+  "claudeCode.preferredLocation": "sidebar",
+  "claudeCode.enableNewConversationShortcut": true,
+  "chat.useClaudeHooks": true,
+  "github.copilot.chat.claudeSonnet5Prompt.enabled": true,
+  "github.copilot.chat.claudeOpus5Prompt.enabled": true,
+  "claudeCode.useTerminal": false
+}
