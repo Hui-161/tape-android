@@ -69,10 +69,11 @@ private val TapeLightColors = lightColorScheme(
 
 @Composable
 fun TapeTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    darkTheme: Boolean? = null,
     content: @Composable () -> Unit,
 ) {
-    val colorScheme = if (darkTheme) TapeDarkColors else TapeLightColors
+    val resolvedDark = darkTheme ?: isSystemInDarkTheme()
+    val colorScheme = if (resolvedDark) TapeDarkColors else TapeLightColors
 
     val view = LocalView.current
     if (!view.isInEditMode) {
@@ -81,9 +82,9 @@ fun TapeTheme(
             window.statusBarColor = colorScheme.background.toArgb()
             window.navigationBarColor = colorScheme.background.toArgb()
             WindowCompat.getInsetsController(window, view)
-                .isAppearanceLightStatusBars = !darkTheme
+                .isAppearanceLightStatusBars = !resolvedDark
             WindowCompat.getInsetsController(window, view)
-                .isAppearanceLightNavigationBars = !darkTheme
+                .isAppearanceLightNavigationBars = !resolvedDark
         }
     }
 

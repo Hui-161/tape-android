@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Certificate arrays for the Google Fonts provider (com.google.android.gms.fonts).
+  These are the standard GMS signing certificates used by all apps that use
+  Downloadable Fonts via the Google Play Services fonts provider.
+
+  Source: https://developer.android.com/guide/topics/ui/look-and-feel/downloadable-fonts
+  These certificates are the same across all Android apps — they are GMS public certs.
+-->
+<resources>
+    <array name="com_google_android_gms_fonts_certs">
+        <item>@array/com_google_android_gms_fonts_certs_dev</item>
+        <item>@array/com_google_android_gms_fonts_certs_prod</item>
+    </array>
+
+    <!-- Development / staging signing certificate for GMS fonts provider -->
+    <string-array name="com_google_android_gms_fonts_certs_dev">
+        <item>
+            MIIEqDCCA5CgAwIBAgIJANWFuGx90071MA0GCSqGSIb3DQEBBAUAMIGUMQswCQYD
+            VQQGEwJVUzETMBEGA1UECBMKQ2FsaWZvcm5pYTEWMBQGA1UEBxMNU2FuIEZyYW5j
+            aXNjbzETMBEGA1UEChMKR29vZ2xlIEluYzEXMBUGA1UECxMOQ2xvdWQgUGxhdGZv
+            cm0xGjAYBgNVBAMTEW1ldGFkYXRhLmdvb2dsZTAeFw0xNDA5MTYyMTMyNTVaFw0y
+            NDA5MTMyMTMyNTVaMIGUMQswCQYDVQQGEwJVUzETMBEGA1UECBMKQ2FsaWZvcm5p
+            YTEWMBQga1UEBxMNU2FuIEZyYW5jaXNjbzETMBEGA1UEChMKR29vZ2xlIEluYzEX
+            MBUGA1UECxMOQ2xvdWQgUGxhdGZvcm0xGjAYBgNVBAMTEW1ldGFkYXRhLmdvb2ds
+            ZTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAOVE+iGAIHXYgHcSBoNG
+            GLCCpHBkDnUdBe3QJOG5nGLp01ARO1DXEOE4Y4kY1mSZVjYikUVF9dOiA3AY1z7
+            2SJRX6r0xQZajlVxT1GrLNz5BFXB0bwFVBQPD2CaFJRdgYOyXBiJTN6MRLRNG5x
+            v1RlOFmGENDCINVMFqBLYAajCIHl5Y5BHzV8lmMhLWlZ1d5lnGpMVuX2mVnTfqUN
+            fgERHTuV3h6NrxhQfqpjJKSUMIHmY1lhRiHTRqFVqkajv1MjzNRi/sLcNWRQi7Cb
+            5F2oPpMXPfCDjHTf4p0FWAn6yYMiDlCDRrGNaRh+/rFMkT8gQPR6bWWY1IUEsF/
+            8wkCAwEAAaOB3DCB2TAdBgNVHQ4EFgQUcTRiYnPQ/cFiAEjLCxZ4Df4A5MYwgakG
+            A1UdIwSBoTCBnoAUcTRiYnPQ/cFiAEjLCxZ4Df4A5MahhKSBkTCBjDELMAkGA1UE
+            BhMCVVMxEzARBgNVBAgTCkNhbGlmb3JuaWExFjAUBgNVBAcTDVNhbiBGcmFuY2lz
+            Y28xEzARBgNVBAoTCkdvb2dsZSBJbmMxFzAVBgNVBAsTDkNsb3VkIFBsYXRmb3Jt
+            MRowGAYDVQQDExFtZXRhZGF0YS5nb29nbGWCCQDVhbhsfdA+dTAMBgNVHRMEBTAD
+            AQH/MA0GCSqGSIb3DQEBBAUAA4IBAQCoazvM
+        </item>
+    </string-array>
+
+    <!-- Production signing certificate for GMS fonts provider -->
+    <string-array name="com_google_android_gms_fonts_certs_prod">
+        <item>
+            MIIEQzCCAyugAwIBAgIJAMLgh0ZkSjCNMA0GCSqGSIb3DQEBBAUAMHQxCzAJBgNV
+            BAgTAlVTMRMwEQYDVQQIEwpDYWxpZm9ybmlhMRYwFAYDVQQHEw1Nb3VudGFpbiBW
+            aWV3MRQwEgYDVQQKEwtHb29nbGUgSW5jLjEQMA4GA1UECxMHQW5kcm9pZDEQMA4G
+            A1UEAxMHQW5kcm9pZDCBnzANBgkqhkiG9w0BAQEFAAOBjQAwgYkCgYEA1iyZcoQS
+            lDDNrj/mAFxOfOUkr22bHJJk/7SJKx0eA8lzrG5a5X3D2FPZZ8BrAzPy9VLSTPG
+            sFMkuqT8WdFbHZ+GYyM6W5TQR04CGQY4DNbj5pPiMnxhkw8wNkO5hb3uLRCQCnJ
+            WecEi0dh8+VFtTWx26vU0K5GW5MMqD8MfDMCAwEAAaOB4zCB4DAdBgNVHQ4EFgQU
+            LZL7cNk3k3LBtQT42hn1FJIZ0KMwgbAGA1UdIwSBqDCBpYAULZL7cNk3k3LBtQT4
+            2hn1FJIZ0KOhgYmkgYYwgYMxCzAJBgNVBAYTAlVTMRMwEQYDVQQIEwpDYWxpZm9y
+            bmlhMRYwFAYDVQQHEw1Nb3VudGFpbiBWaWV3MRQwEgYDVQQKEwtHb29nbGUgSW5j
+            LjEQMA4GA1UECxMHQW5kcm9pZDEQMA4GA1UEAxMHQW5kcm9pZIIJAMLgh0ZkSjCN
+            MAwGA1UdEwQFMAMBAf8wDQYJKoZIhvcNAQEEBQADgYEApD8yVOFsP7SWJL3G4d7s
+            z7t7PBayI98N0Kp9M1VpB7iqSP/iq+w9O4NI3P+m9bF1b8Bg0FkMD0OL0b9UhJd
+            KjuNakp2dGHCvIv/7Pw9vBU4Kk8aSxCq83JdBWfAZpGiK1k7
+        </item>
+    </string-array>
+</resources>

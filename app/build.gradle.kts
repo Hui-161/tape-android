@@ -3,19 +3,10 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
-    alias(libs.plugins.kotlin.kapt)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
 }
 
-// kapt for Hilt + Room (KSP-mode Hilt currently has issues with @AndroidEntryPoint
-// base class resolution; kapt is the battle-tested path).
-kapt {
-    correctErrorTypes = true
-}
-
-// Hilt aggregating task — turns Hilt's annotation processor into an isolating task,
-// which makes incremental builds faster and is recommended for new projects.
 hilt {
     enableAggregatingTask = true
 }
@@ -95,19 +86,19 @@ dependencies {
     implementation(libs.androidx.material.icons.extended)
     implementation(libs.androidx.navigation.compose)
     debugImplementation(libs.androidx.ui.tooling)
+    implementation(libs.androidx.ui.text.google.fonts)
 
-    // Hilt (kapt — KSP-mode Hilt has known issues with @AndroidEntryPoint base class resolution)
+    // Hilt (KSP — kapt is incompatible with Kotlin 2.1.x metadata format)
     implementation(libs.hilt.android)
-    kapt(libs.hilt.compiler)
+    ksp(libs.hilt.compiler)
     implementation(libs.hilt.navigation.compose)
 
-    // Room (kapt for now, switch to KSP once we confirm Hilt+KSP works)
+    // Room (KSP)
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
-    kapt(libs.androidx.room.compiler)
+    ksp(libs.androidx.room.compiler)
 
     // ARCore via SceneView — Compose-friendly ARScene composable + camera background rendering.
-    // Transitively pulls in com.google.ar:core so we don't need to declare it separately.
     implementation(libs.arsceneview)
 
     // Coroutines (explicit — also pulled transitively via Hilt/Room)
@@ -116,7 +107,7 @@ dependencies {
     // DataStore — user preferences (unit default, theme)
     implementation(libs.androidx.datastore.preferences)
 
-    // Serialization (for future use)
+    // Serialization
     implementation(libs.kotlinx.serialization.json)
 
     // Tests

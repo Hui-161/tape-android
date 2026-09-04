@@ -2,18 +2,28 @@ package com.tape.measure.ui.screens.measure
 
 import android.opengl.Matrix
 import androidx.compose.ui.geometry.Offset
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.google.ar.core.Anchor
 import com.google.ar.core.Camera
+import com.google.ar.core.Frame
 import com.google.ar.core.HitResult
+import com.google.ar.core.Plane
 import com.google.ar.core.TrackingState
+import com.tape.measure.data.db.MeasurementEntity
+import com.tape.measure.data.prefs.UserPreferencesRepository
+import com.tape.measure.data.repository.MeasurementRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import java.util.UUID
 import javax.inject.Inject
 import kotlin.math.sqrt
-import androidx.lifecycle.ViewModel
 
 /**
  * ViewModel for the AR measurement screen.
@@ -36,14 +46,27 @@ import androidx.lifecycle.ViewModel
  * stub already has the right signature so MeasureScreen doesn't need to change later.
  */
 @HiltViewModel
-class MeasureViewModel @Inject constructor() : ViewModel() {
+class MeasureViewModel @Inject constructor(
+    private val repository: MeasurementRepository,
+    prefs: UserPreferencesRepository,
+) : ViewModel() {
 
     private val _uiState = MutableStateFlow(MeasureUiState())
     val uiState: StateFlow<MeasureUiState> = _uiState.asStateFlow()
 
+    init {
+        prefs.unitFlow
+            .onEach { unit -> _uiState.update { it.copy(unitSystem = unit) } }
+            .launchIn(viewModelScope)
+    }
+
     // Anchor handles — written on main thread, read on render thread.
     @Volatile private var anchorA: Anchor? = null
     @Volatile private var anchorB: Anchor? = null
+
+    // Pending tap screen coordinates — set from main thread, consumed on render thread.
+    @Volatile private var pendingTapX: Float = -1f
+    @Volatile private var pendingTapY: Float = -1f
 
     // Viewport dimensions set once from MeasureScreen's onGloballyPositioned.
     @Volatile private var viewportWidth: Int = 1
@@ -69,17 +92,27 @@ class MeasureViewModel @Inject constructor() : ViewModel() {
     // ── Per-frame update (render thread) ─────────────────────────────────────
 
     /**
-     * Called every AR frame. Reads tracking state, projects anchor poses to
+     * Called every AR frame from the GL render thread. Reads tracking state,
+     * processes any queued tap via [Frame.hitTest], projects anchor poses to
      * screen space, and pushes an updated [MeasureUiState].
-     *
-     * [camera] is the ARCore [Camera] obtained from the current frame.
      */
-    fun onFrame(camera: Camera) {
+    fun onFrame(camera: Camera, frame: Frame) {
         val confidence = camera.trackingState.toConfidence()
 
         if (camera.trackingState != TrackingState.TRACKING) {
             _uiState.update { it.copy(confidence = confidence) }
             return
+        }
+
+        // Consume pending tap — hit-test against detected planes.
+        val tapX = pendingTapX
+        val tapY = pendingTapY
+        if (tapX >= 0f) {
+            pendingTapX = -1f
+            pendingTapY = -1f
+            frame.hitTest(tapX, tapY)
+                .firstOrNull { it.trackable is Plane && it.trackable.trackingState == TrackingState.TRACKING }
+                ?.let { onTap(it) }
         }
 
         // Grab matrices — safe to call on render thread after Session.update().
@@ -106,10 +139,15 @@ class MeasureViewModel @Inject constructor() : ViewModel() {
 
     // ── User-interaction handlers (main thread) ───────────────────────────────
 
+    /** Queues screen-space tap coordinates to be processed in the next [onFrame] call. */
+    fun enqueueTap(x: Float, y: Float) {
+        pendingTapX = x
+        pendingTapY = y
+    }
+
     /**
-     * Called when SceneView detects a tap on a detected surface.
-     * [hitResult] is valid only during this callback; we call [HitResult.createAnchor]
-     * immediately so ARCore retains the position.
+     * Places an anchor at the given hit result. Called from [onFrame] on the render thread
+     * after a successful plane hit test, or directly from tests.
      */
     fun onTap(hitResult: HitResult) {
         when (_uiState.value.phase) {
@@ -145,14 +183,27 @@ class MeasureViewModel @Inject constructor() : ViewModel() {
         }
     }
 
-    /**
-     * Saves the current measurement to Room.
-     * Repository injection comes in item 6; the stub is here so MeasureScreen's
-     * Save button can already wire up without a second refactor.
-     */
     fun saveMeasurement(label: String = "") {
-        // TODO(item-6): inject MeasurementRepository and persist to Room.
-        _uiState.update { it.copy(justSaved = true) }
+        val dist = _uiState.value.distanceMeters ?: return
+        val unit = _uiState.value.unitSystem
+        val conf = when (_uiState.value.confidence) {
+            TrackingConfidence.HIGH         -> 0.9f
+            TrackingConfidence.LOW          -> 0.5f
+            TrackingConfidence.NOT_TRACKING -> 0.1f
+        }
+        viewModelScope.launch {
+            repository.save(
+                MeasurementEntity(
+                    id            = UUID.randomUUID().toString(),
+                    distanceMeters = dist,
+                    unit          = unit.name,
+                    label         = label.ifBlank { null },
+                    confidence    = conf,
+                    createdAt     = System.currentTimeMillis(),
+                )
+            )
+            _uiState.update { it.copy(justSaved = true) }
+        }
     }
 
     override fun onCleared() {

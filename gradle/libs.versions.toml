@@ -9,7 +9,7 @@ composeBom = "2024.12.01"           # Compose BOM (pins all Compose libs)
 hilt = "2.52"                       # DI
 hiltNavigationCompose = "1.2.0"     # Hilt + Compose Navigation
 navigationCompose = "2.8.5"         # Jetpack Navigation Compose
-room = "2.6.1"                      # local DB
+room = "2.7.0"                      # local DB
 kotlinxSerialization = "1.7.3"      # JSON (for future use)
 arsceneview = "2.2.1"               # SceneView — Compose-friendly ARCore wrapper
 coroutines = "1.9.0"                # Explicit coroutines (pulled transitively but should be declared)
@@ -29,6 +29,7 @@ androidx-ui = { group = "androidx.compose.ui", name = "ui" }
 androidx-ui-graphics = { group = "androidx.compose.ui", name = "ui-graphics" }
 androidx-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }
 androidx-ui-tooling = { group = "androidx.compose.ui", name = "ui-tooling" }
+androidx-ui-text-google-fonts = { group = "androidx.compose.ui", name = "ui-text-google-fonts" }
 androidx-material3 = { group = "androidx.compose.material3", name = "material3" }
 androidx-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended" }
 androidx-navigation-compose = { group = "androidx.navigation", name = "navigation-compose", version.ref = "navigationCompose" }

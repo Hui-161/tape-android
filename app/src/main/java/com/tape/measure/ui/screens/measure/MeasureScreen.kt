@@ -5,6 +5,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -33,7 +34,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -43,6 +43,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
@@ -50,7 +51,6 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.google.ar.core.ArCoreApk
 import com.google.ar.core.TrackingState
 import com.tape.measure.ui.theme.AmberBottom
 import com.tape.measure.ui.theme.AmberTop
@@ -61,7 +61,6 @@ import com.tape.measure.ui.theme.InkBackground
 import com.tape.measure.ui.theme.TapeMeasurement
 import io.github.sceneview.ar.ARScene
 import kotlin.math.roundToInt
-import androidx.compose.ui.platform.LocalContext
 
 /**
  * Core AR measurement screen.
@@ -85,11 +84,11 @@ fun MeasureScreen(
     viewModel: MeasureViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val context = LocalContext.current
 
     // Pixel dimensions for the 3-D→2-D projection in the ViewModel.
     var viewportWidth  by remember { mutableStateOf(1) }
     var viewportHeight by remember { mutableStateOf(1) }
+
 
     // Pre-compute pixel sizes used in both Canvas and positional offsets.
     val density = LocalDensity.current
@@ -108,6 +107,9 @@ fun MeasureScreen(
                     viewportHeight = h
                     viewModel.setViewport(w, h)
                 }
+            }
+            .pointerInput(Unit) {
+                detectTapGestures { offset -> viewModel.enqueueTap(offset.x, offset.y) }
             },
     ) {
 
@@ -115,22 +117,11 @@ fun MeasureScreen(
         ARScene(
             modifier = Modifier.fillMaxSize(),
             planeRenderer = true,
-            onSessionCreated = { _ ->
-                // Session is ready — nothing to do here for now.
-                // Repository injection (item 6) may want to know when the session starts.
+            onSessionCreated = { _ -> },
+            onSessionUpdated = { _, frame ->
+                viewModel.onFrame(frame.camera, frame)
             },
-            onFrame = { arFrame ->
-                // arFrame.camera is com.google.ar.core.Camera (SceneView exposes it directly)
-                viewModel.onFrame(arFrame.camera)
-            },
-            onTap = { hitResult, _ ->
-                viewModel.onTap(hitResult)
-            },
-            onARSessionFailed = { exception ->
-                // Session creation failed (device issue, ARCore not installed, etc.).
-                // Navigate away so the user sees a clear explanation.
-                onDeviceUnsupported()
-            },
+            onSessionFailed = { _ -> onDeviceUnsupported() },
         )
 
         // ── 2. Measurement overlay (Canvas) ──────────────────────────────────
@@ -143,19 +134,22 @@ fun MeasureScreen(
             strokeWidthPx  = strokeWidthPx,
         )
 
-        // ── Distance pill at midpoint (uses Compose Text, not Canvas drawText) ──
-        val pA = uiState.screenPointA
-        val pB = uiState.screenPointB
+        // ── Distance pill at midpoint (fades in when both points are set) ──
+        val pA   = uiState.screenPointA
+        val pB   = uiState.screenPointB
         val dist = uiState.distanceMeters
-        if (pA != null && pB != null && dist != null) {
-            val midX = ((pA.x + pB.x) / 2f).roundToInt()
-            val midY = ((pA.y + pB.y) / 2f).roundToInt() - with(density) { 28.dp.roundToPx() }
-            DistancePill(
-                text = uiState.unitSystem.format(dist),
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .offset { IntOffset(midX, midY) },
-            )
+        val midX = if (pA != null && pB != null) ((pA.x + pB.x) / 2f).roundToInt() else 0
+        val midY = if (pA != null && pB != null)
+            ((pA.y + pB.y) / 2f).roundToInt() - with(density) { 28.dp.roundToPx() } else 0
+        AnimatedVisibility(
+            visible  = pA != null && pB != null && dist != null,
+            enter    = fadeIn(),
+            exit     = fadeOut(),
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .offset { IntOffset(midX, midY) },
+        ) {
+            DistancePill(text = dist?.let { uiState.unitSystem.format(it) } ?: "")
         }
 
         // ── 3. Top HUD ────────────────────────────────────────────────────────
