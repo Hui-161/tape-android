@@ -16,6 +16,7 @@ It is **public by intent**. We ship our thinking alongside our code because:
 | `pre-execution.md` | Locked decisions before code: tech stack, scope, risks, deployment, open questions. |
 | `design-brief.md` | The brief for claude-design (or any designer) to produce the v1 visual prototype. Includes screens, filters, anti-slop rules. |
 | `execution.md` | Locked v1 scope, user flows, technical context, decision log. The build references this. |
+| `2026-09-26-verbesserungsplan.md` | Code analysis of the current build (verified bugs, build/lint/test results) and a phased improvement plan. Written in German. |
 
 The HTML prototype files live in [`../docs/`](../docs/), not here. `.hermes/` is for planning markdown only.
 
