@@ -1,12 +1,18 @@
 package com.tape.measure.ui.navigation
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.tape.measure.ui.screens.measure.MeasureScreen
 import com.tape.measure.ui.screens.permission.PermissionScreen
+import com.tape.measure.ui.screens.permission.hasCameraPermission
 import com.tape.measure.ui.screens.saved.SavedListScreen
 import com.tape.measure.ui.screens.settings.SettingsScreen
 import com.tape.measure.ui.screens.unsupported.UnsupportedScreen
@@ -16,28 +22,34 @@ import com.tape.measure.ui.screens.welcome.WelcomeScreen
  * Root navigation host.
  *
  * Flow:
- *  Welcome → Permission → Measure  (happy path)
- *                       ↘ Unsupported  (no ARCore / denied)
+ *  Welcome → Permission → Measure  (first launch)
+ *                       ↘ Unsupported  (device can't run ARCore)
+ *  Measure                          (every later launch: permission already granted)
  *  Measure → Saved
  *  Measure / Saved → Settings
  *
- * All screen-to-screen transitions are pop-inclusive where appropriate so the
- * system back button doesn't resurface the permission gate after it's done.
+ * Onboarding is removed from the back stack once it is done, so the system back button
+ * leaves the app from Measure instead of resurfacing Welcome or Permission.
  */
 @Composable
 fun TapeNavGraph(
     navController: NavHostController,
     modifier: Modifier = Modifier,
 ) {
+    val context = LocalContext.current
+    val startDestination: Route = remember {
+        if (context.hasCameraPermission()) Route.Measure else Route.Welcome
+    }
+
     NavHost(
         navController = navController,
-        startDestination = Route.Welcome,
+        startDestination = startDestination,
         modifier = modifier,
     ) {
 
         composable<Route.Welcome> {
             WelcomeScreen(
-                onContinue = { navController.navigate(Route.Permission) },
+                onContinue = { navController.navigate(Route.Permission) { launchSingleTop = true } },
             )
         }
 
@@ -45,9 +57,7 @@ fun TapeNavGraph(
             PermissionScreen(
                 onPermissionGranted = {
                     navController.navigate(Route.Measure) {
-                        // Remove the permission screen from back-stack so back
-                        // from Measure goes to Welcome, not back to Permission.
-                        popUpTo<Route.Permission> { inclusive = true }
+                        popUpTo<Route.Welcome> { inclusive = true }
                     }
                 },
                 onDeviceUnsupported = {
@@ -60,16 +70,17 @@ fun TapeNavGraph(
 
         composable<Route.Unsupported> {
             UnsupportedScreen(
-                onBack = { navController.popBackStack() },
+                // Unsupported can be the only entry when Measure was the start destination.
+                onBack = { if (!navController.popBackStack()) context.findActivity()?.finish() },
             )
         }
 
         composable<Route.Measure> {
             MeasureScreen(
-                onNavigateToSaved = { navController.navigate(Route.Saved) },
-                onNavigateToSettings = { navController.navigate(Route.Settings) },
+                onNavigateToSaved = { navController.navigate(Route.Saved) { launchSingleTop = true } },
+                onNavigateToSettings = { navController.navigate(Route.Settings) { launchSingleTop = true } },
                 onDeviceUnsupported = {
-                    // Session creation can fail even if ARCore reported "installed" —
+                    // Session creation can fail even if ARCore reported "supported" —
                     // navigate away so the user sees a clear explanation.
                     navController.navigate(Route.Unsupported) {
                         popUpTo<Route.Measure> { inclusive = true }
@@ -81,7 +92,7 @@ fun TapeNavGraph(
         composable<Route.Saved> {
             SavedListScreen(
                 onBack = { navController.popBackStack() },
-                onNavigateToSettings = { navController.navigate(Route.Settings) },
+                onNavigateToSettings = { navController.navigate(Route.Settings) { launchSingleTop = true } },
             )
         }
 
@@ -91,4 +102,10 @@ fun TapeNavGraph(
             )
         }
     }
+}
+
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
 }

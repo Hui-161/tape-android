@@ -1,7 +1,9 @@
 package com.tape.measure.ui.screens.permission
 
 import android.Manifest
+import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -39,7 +41,12 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import com.google.ar.core.ArCoreApk
+import com.tape.measure.data.ar.ArSupport
+import com.tape.measure.data.ar.awaitArSupport
 import com.tape.measure.ui.theme.AmberBottom
 import com.tape.measure.ui.theme.AmberTop
 import com.tape.measure.ui.theme.InkBackground
@@ -47,11 +54,12 @@ import com.tape.measure.ui.theme.InkTextSecondary
 
 /**
  * Gate screen that:
- *  1. Checks ARCore availability — routes to UnsupportedScreen immediately if the device
- *     cannot run AR (no need to ask for camera on an incompatible device).
+ *  1. Checks ARCore availability — routes to UnsupportedScreen if the device cannot run AR
+ *     (no need to ask for camera on an incompatible device).
  *  2. Explains why camera access is needed.
  *  3. Requests the CAMERA permission.
- *  4. On denial shows a rationale + "Open Settings" deep-link.
+ *  4. On denial shows a rationale + "Open Settings" deep-link, and continues automatically
+ *     once the permission was granted there.
  *
  * The screen itself never holds state beyond this flow; everything is a one-shot side-effect.
  */
@@ -63,18 +71,31 @@ fun PermissionScreen(
     val context = LocalContext.current
     var permissionDenied by remember { mutableStateOf(false) }
 
-    // Check ARCore availability exactly once when the screen enters composition.
-    LaunchedEffect(Unit) {
-        val availability = ArCoreApk.getInstance().checkAvailability(context)
-        if (!availability.isSupported) {
-            onDeviceUnsupported()
+    // The ARCore check and the permission flow can both leave this screen; only leave once.
+    var done by remember { mutableStateOf(false) }
+    fun leave(navigate: () -> Unit) {
+        if (!done) {
+            done = true
+            navigate()
         }
+    }
+
+    // "Unknown" (e.g. offline) is not "unsupported": the measure screen checks again before it
+    // starts the AR session.
+    LaunchedEffect(Unit) {
+        val support = awaitArSupport { ArCoreApk.getInstance().checkAvailability(context) }
+        if (support == ArSupport.UNSUPPORTED) leave(onDeviceUnsupported)
+    }
+
+    // Also covers coming back from the system settings with the permission granted.
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        if (context.hasCameraPermission()) leave(onPermissionGranted)
     }
 
     val cameraPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
     ) { granted ->
-        if (granted) onPermissionGranted() else permissionDenied = true
+        if (granted) leave(onPermissionGranted) else permissionDenied = true
     }
 
     val amberGradient = Brush.horizontalGradient(listOf(AmberTop, AmberBottom))
@@ -188,3 +209,6 @@ fun PermissionScreen(
         }
     }
 }
+
+internal fun Context.hasCameraPermission(): Boolean =
+    ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED

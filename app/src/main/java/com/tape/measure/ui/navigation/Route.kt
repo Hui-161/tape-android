@@ -27,9 +27,9 @@ sealed interface Route {
     /** Core AR measurement screen. */
     @Serializable data object Measure : Route
 
-    /** List of saved measurements (Room-backed). Stub for now. */
+    /** List of saved measurements (Room-backed). */
     @Serializable data object Saved : Route
 
-    /** App settings: default unit, theme, about. Stub for now. */
+    /** App settings: default unit, theme, about. */
     @Serializable data object Settings : Route
 }
