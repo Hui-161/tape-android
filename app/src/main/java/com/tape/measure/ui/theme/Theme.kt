@@ -18,19 +18,27 @@ import androidx.core.view.WindowCompat
  * Dark scheme is the primary surface for the v1.0 build. Light scheme
  * is wired but minimal — it'll get a proper warm-amber light palette
  * once we ship the dark version and validate the wedge.
+ *
+ * Every role Material components read is set explicitly. Roles left out fall back to
+ * Material's purple baseline (chips, sheets, dialogs and snackbars use the container roles).
  */
 
-private val TapeDarkColors = darkColorScheme(
+internal val TapeDarkColors = darkColorScheme(
     primary = AmberBottom,
     onPrimary = InkBackground,
     primaryContainer = AmberTop,
     onPrimaryContainer = InkBackground,
+    inversePrimary = AmberBottom,
 
     secondary = AmberTop,
     onSecondary = InkBackground,
+    secondaryContainer = InkSurfaceHigh,
+    onSecondaryContainer = AmberTop,
 
     tertiary = ConfidenceHigh,
     onTertiary = InkBackground,
+    tertiaryContainer = InkSurfaceHigh,
+    onTertiaryContainer = ConfidenceHigh,
 
     background = InkBackground,
     onBackground = InkTextPrimary,
@@ -39,32 +47,70 @@ private val TapeDarkColors = darkColorScheme(
     onSurface = InkTextPrimary,
     surfaceVariant = InkSurfaceHigh,
     onSurfaceVariant = InkTextSecondary,
+    inverseSurface = InkTextPrimary,
+    inverseOnSurface = InkBackground,
+    surfaceDim = InkBackground,
+    surfaceBright = InkSurfaceHigh,
+    surfaceContainerLowest = InkBackground,
+    surfaceContainerLow = InkSurface,
+    surfaceContainer = InkSurface,
+    surfaceContainerHigh = InkSurfaceHigh,
+    surfaceContainerHighest = InkSurfaceHigh,
 
     outline = InkOutline,
     outlineVariant = InkOutline,
 
     error = ConfidenceLow,
     onError = InkBackground,
+    errorContainer = InkSurfaceHigh,
+    onErrorContainer = ConfidenceLow,
 )
 
-private val TapeLightColors = lightColorScheme(
-    // Provisional light palette — warm cream + amber. Refine after dark ships.
+// Provisional light palette — warm cream + amber. Refine after dark ships.
+private val LightBackground = Color(0xFFFAF6EE)
+private val LightSurface = Color(0xFFFFF9F0)
+private val LightSurfaceVariant = Color(0xFFF1E9D8)
+private val LightOnSurfaceVariant = Color(0xFF5A4F3F)
+private val LightOutline = Color(0xFFD4CAB5)
+
+internal val TapeLightColors = lightColorScheme(
     primary = AmberBottom,
     onPrimary = Color.White,
     primaryContainer = AmberTop,
     onPrimaryContainer = InkBackground,
+    inversePrimary = AmberTop,
 
     secondary = AmberTop,
     onSecondary = InkBackground,
+    secondaryContainer = LightSurfaceVariant,
+    onSecondaryContainer = InkBackground,
 
-    background = Color(0xFFFAF6EE),
+    tertiary = ConfidenceHigh,
+    onTertiary = InkBackground,
+    tertiaryContainer = LightSurfaceVariant,
+    onTertiaryContainer = InkBackground,
+
+    background = LightBackground,
     onBackground = InkBackground,
-    surface = Color(0xFFFFF9F0),
+    surface = LightSurface,
     onSurface = InkBackground,
-    surfaceVariant = Color(0xFFF1E9D8),
-    onSurfaceVariant = Color(0xFF5A4F3F),
+    surfaceVariant = LightSurfaceVariant,
+    onSurfaceVariant = LightOnSurfaceVariant,
+    inverseSurface = InkSurface,
+    inverseOnSurface = InkTextPrimary,
+    surfaceDim = LightSurfaceVariant,
+    surfaceBright = LightSurface,
+    surfaceContainerLowest = LightSurface,
+    surfaceContainerLow = LightSurface,
+    surfaceContainer = LightSurfaceVariant,
+    surfaceContainerHigh = LightSurfaceVariant,
+    surfaceContainerHighest = LightSurfaceVariant,
 
-    outline = Color(0xFFD4CAB5),
+    outline = LightOutline,
+    outlineVariant = LightOutline,
+
+    errorContainer = LightSurfaceVariant,
+    onErrorContainer = InkBackground,
 )
 
 @Composable
