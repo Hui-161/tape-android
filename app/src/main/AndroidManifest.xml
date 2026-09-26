@@ -1,8 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!-- Required for ARCore (camera access). Requested at runtime on the permission screen. -->
     <uses-permission android:name="android.permission.CAMERA" />
+
+    <!-- SceneView declares INTERNET to load 3D models from URLs. Tape renders no models and
+         keeps everything on the device, so the merged manifest must not carry it. -->
+    <uses-permission
+        android:name="android.permission.INTERNET"
+        tools:node="remove" />
 
     <!-- ARCore is required hardware for v1's AR measurement. -->
     <uses-feature
