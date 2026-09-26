@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Messscreen: Hinweis über den Bedienelementen -->
+    <string name="measure_guidance_starting">AR startet … Handy langsam bewegen</string>
+    <string name="measure_guidance_too_dark">Zu dunkel – bitte mehr Licht</string>
+    <string name="measure_guidance_too_fast">Handy langsamer bewegen</string>
+    <string name="measure_guidance_low_texture">Auf eine Fläche mit mehr Struktur richten</string>
+    <string name="measure_guidance_camera_unavailable">Kamera nicht verfügbar</string>
+    <string name="measure_guidance_ar_stopped">AR-Tracking gestoppt – Messscreen neu öffnen</string>
+    <string name="measure_guidance_find_surface">Handy langsam bewegen, um Flächen zu erkennen</string>
+    <string name="measure_guidance_aim_surface">Fadenkreuz auf eine erkannte Fläche richten</string>
+    <string name="measure_guidance_place_start">Auf den Startpunkt zielen und + tippen</string>
+    <string name="measure_guidance_place_end">Auf den Endpunkt zielen und + tippen</string>
+    <string name="measure_guidance_measured">Ergebnis speichern oder mit + neu messen</string>
+
+    <!-- Messscreen: Genauigkeitsanzeige und Messwert -->
+    <string name="measure_accuracy_no_tracking">Kein Tracking</string>
+    <string name="measure_accuracy_tracking">Tracking aktiv</string>
+    <string name="measure_accuracy_good">Gute Genauigkeit</string>
+    <string name="measure_accuracy_fair">Mittlere Genauigkeit</string>
+    <string name="measure_accuracy_poor">Geringe Genauigkeit</string>
+    <string name="measure_uncertainty_estimated">%1$s (geschätzt)</string>
+
+    <!-- Messscreen: Bedienelemente -->
+    <string name="measure_add_point">Punkt setzen</string>
+    <string name="measure_undo">Letzten Punkt entfernen</string>
+    <string name="measure_save">Messung speichern</string>
+    <string name="measure_saved_state">Messung gespeichert</string>
+    <string name="measure_saved_snackbar">Messung gespeichert</string>
+    <string name="measure_open_saved">Gespeicherte Messungen</string>
+    <string name="measure_open_settings">Einstellungen</string>
+    <string name="measure_change_unit">Einheit wechseln, aktuell: %1$s</string>
+
+    <!-- Messscreen: Fehler beim Start der AR-Session -->
+    <string name="ar_error_install_declined">Zum Messen werden die „Google Play-Dienste für AR“ benötigt. Bitte installieren.</string>
+    <string name="ar_error_arcore_update_required">Die „Google Play-Dienste für AR“ fehlen oder sind veraltet. Bitte im Play Store installieren bzw. aktualisieren.</string>
+    <string name="ar_error_app_update_required">Diese Tape-Version ist zu alt für das installierte ARCore. Bitte Tape aktualisieren.</string>
+    <string name="ar_error_camera_unavailable">Die Kamera wird von einer anderen App verwendet. Bitte schließen und erneut versuchen.</string>
+    <string name="ar_error_camera_permission">Tape braucht Zugriff auf die Kamera, um zu messen.</string>
+    <string name="ar_error_other">AR konnte nicht gestartet werden.</string>
+    <string name="ar_error_retry">Erneut versuchen</string>
+</resources>

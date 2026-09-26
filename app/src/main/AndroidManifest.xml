@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Required for ARCore (camera access). Declared now; requested at runtime in v1.0+. -->
+    <!-- Required for ARCore (camera access). Requested at runtime on the permission screen. -->
     <uses-permission android:name="android.permission.CAMERA" />
 
     <!-- ARCore is required hardware for v1's AR measurement. -->
@@ -28,8 +28,12 @@
             android:name="com.google.ar.core"
             android:value="optional" />
 
+        <!-- configChanges: rotating must not recreate the activity, which would restart the
+             AR session and lose a measurement in progress. Compose relayouts, and SceneView
+             updates the ARCore display geometry when its view is resized. -->
         <activity
             android:name=".ui.MainActivity"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden"
             android:exported="true"
             android:theme="@style/Theme.Tape">
             <intent-filter>

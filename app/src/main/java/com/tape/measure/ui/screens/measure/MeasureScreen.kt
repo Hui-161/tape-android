@@ -1,11 +1,11 @@
 package com.tape.measure.ui.screens.measure
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
+import android.os.Build
+import android.view.HapticFeedbackConstants
+import android.view.View
+import androidx.annotation.StringRes
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -22,19 +21,27 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Bookmark
-import androidx.compose.material.icons.outlined.List
-import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.automirrored.outlined.List
+import androidx.compose.material.icons.automirrored.outlined.Undo
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.BookmarkAdded
+import androidx.compose.material.icons.outlined.BookmarkAdd
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -42,16 +49,38 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntRect
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.google.ar.core.TrackingState
+import com.google.ar.core.ArCoreApk
+import com.google.ar.core.exceptions.UnavailableDeviceNotCompatibleException
+import com.tape.measure.R
+import com.tape.measure.data.ar.ArFrameReader
+import com.tape.measure.data.ar.ArSupport
+import com.tape.measure.data.ar.awaitArSupport
+import com.tape.measure.data.ar.toArError
+import com.tape.measure.domain.measure.AccuracyLevel
+import com.tape.measure.domain.measure.ArError
+import com.tape.measure.domain.measure.ScreenPoint
+import com.tape.measure.domain.measure.ScreenSegment
+import com.tape.measure.domain.model.UnitSystem
 import com.tape.measure.ui.theme.AmberBottom
 import com.tape.measure.ui.theme.AmberTop
 import com.tape.measure.ui.theme.ConfidenceHigh
@@ -60,21 +89,18 @@ import com.tape.measure.ui.theme.ConfidenceMedium
 import com.tape.measure.ui.theme.InkBackground
 import com.tape.measure.ui.theme.TapeMeasurement
 import io.github.sceneview.ar.ARScene
+import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 /**
- * Core AR measurement screen.
+ * Core AR measurement screen: a live tape measure with a crosshair in the centre.
  *
  * Layout (all fullscreen, stacked in a Box):
- *   1. [ARScene]          — camera feed + plane-detection grid  (SceneView)
- *   2. [MeasurementCanvas]— amber dots + connecting line + distance pill
- *   3. [TopHud]           — confidence badge (left) + unit chip + nav icons (right)
- *   4. [BottomControls]   — phase-aware hint / Reset / Save buttons
+ *   1. [ARScene]   — camera feed + detected planes (SceneView)
+ *   2. [MeasureHud] — crosshair, measuring line, distance label, accuracy badge, controls
  *
- * Threading:
- *   ARScene calls [MeasureViewModel.onFrame] on the GL render thread.
- *   All other callbacks land on the main thread.
- *   See MeasureViewModel KDoc for the full threading contract.
+ * Points are added with the + button at the crosshair, not by tapping the camera view: the
+ * finger does not cover the target, and SceneView consumes touches on its view anyway.
  */
 @Composable
 fun MeasureScreen(
@@ -83,225 +109,387 @@ fun MeasureScreen(
     onDeviceUnsupported: () -> Unit,
     viewModel: MeasureViewModel = hiltViewModel(),
 ) {
+    val context = LocalContext.current
+    val view = LocalView.current
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val overlayState = viewModel.overlay.collectAsStateWithLifecycle()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val savedMessage = stringResource(R.string.measure_saved_snackbar)
 
-    // Pixel dimensions for the 3-D→2-D projection in the ViewModel.
-    var viewportWidth  by remember { mutableStateOf(1) }
-    var viewportHeight by remember { mutableStateOf(1) }
+    // On a fresh install ARCore may still be asking its remote service. Starting the session
+    // before the answer is definite makes SceneView report the device as incompatible.
+    var arReady by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        val support = awaitArSupport { ArCoreApk.getInstance().checkAvailability(context) }
+        if (support == ArSupport.UNSUPPORTED) onDeviceUnsupported() else arReady = true
+    }
 
+    LaunchedEffect(viewModel) {
+        viewModel.events.collect { event ->
+            when (event) {
+                MeasureEvent.POINT_ADDED -> view.confirmHaptic()
+                MeasureEvent.NO_SURFACE -> view.rejectHaptic()
+                // showSnackbar suspends until dismissed; don't hold back haptics meanwhile.
+                MeasureEvent.SAVED -> launch { snackbarHostState.showSnackbar(savedMessage) }
+            }
+        }
+    }
 
-    // Pre-compute pixel sizes used in both Canvas and positional offsets.
-    val density = LocalDensity.current
-    val dotRadiusPx    = with(density) { 10.dp.toPx() }
-    val strokeWidthPx  = with(density) { 2.5.dp.toPx() }
-    val dotOutlinePx   = with(density) { 2.dp.toPx() }
+    // Measuring takes a while; don't let the display time out.
+    DisposableEffect(view) {
+        view.keepScreenOn = true
+        onDispose { view.keepScreenOn = false }
+    }
+
+    val frameReader = remember { ArFrameReader() }
+    var viewportSize by remember { mutableStateOf(IntSize.Zero) }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .onGloballyPositioned { coords ->
-                val w = coords.size.width
-                val h = coords.size.height
-                if (w != viewportWidth || h != viewportHeight) {
-                    viewportWidth  = w
-                    viewportHeight = h
-                    viewModel.setViewport(w, h)
+            .background(Color.Black)
+            .onSizeChanged { viewportSize = it },
+    ) {
+        if (arReady) {
+            key(uiState.sessionAttempt) {
+                ARScene(
+                    modifier = Modifier.fillMaxSize(),
+                    planeRenderer = true,
+                    sessionConfiguration = { session, config -> ArFrameReader.configure(session, config) },
+                    onSessionCreated = { session ->
+                        frameReader.onSessionCreated(session)
+                        viewModel.onSessionCreated()
+                    },
+                    onSessionUpdated = { session, frame ->
+                        val size = viewportSize
+                        if (size.width > 0 && size.height > 0) {
+                            viewModel.onFrame(frameReader.read(session, frame, size.width, size.height))
+                        }
+                    },
+                    onSessionFailed = { exception ->
+                        if (exception is UnavailableDeviceNotCompatibleException) {
+                            onDeviceUnsupported()
+                        } else {
+                            viewModel.onArError(exception.toArError())
+                        }
+                    },
+                )
+                DisposableEffect(Unit) {
+                    onDispose { viewModel.onArSceneDisposed() }
                 }
             }
-            .pointerInput(Unit) {
-                detectTapGestures { offset -> viewModel.enqueueTap(offset.x, offset.y) }
-            },
-    ) {
-
-        // ── 1. ARScene (camera background + plane grid) ──────────────────────
-        ARScene(
-            modifier = Modifier.fillMaxSize(),
-            planeRenderer = true,
-            onSessionCreated = { _ -> },
-            onSessionUpdated = { _, frame ->
-                viewModel.onFrame(frame.camera, frame)
-            },
-            onSessionFailed = { _ -> onDeviceUnsupported() },
-        )
-
-        // ── 2. Measurement overlay (Canvas) ──────────────────────────────────
-        MeasurementCanvas(
-            modifier       = Modifier.fillMaxSize(),
-            screenPointA   = uiState.screenPointA,
-            screenPointB   = uiState.screenPointB,
-            dotRadiusPx    = dotRadiusPx,
-            dotOutlinePx   = dotOutlinePx,
-            strokeWidthPx  = strokeWidthPx,
-        )
-
-        // ── Distance pill at midpoint (fades in when both points are set) ──
-        val pA   = uiState.screenPointA
-        val pB   = uiState.screenPointB
-        val dist = uiState.distanceMeters
-        val midX = if (pA != null && pB != null) ((pA.x + pB.x) / 2f).roundToInt() else 0
-        val midY = if (pA != null && pB != null)
-            ((pA.y + pB.y) / 2f).roundToInt() - with(density) { 28.dp.roundToPx() } else 0
-        AnimatedVisibility(
-            visible  = pA != null && pB != null && dist != null,
-            enter    = fadeIn(),
-            exit     = fadeOut(),
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .offset { IntOffset(midX, midY) },
-        ) {
-            DistancePill(text = dist?.let { uiState.unitSystem.format(it) } ?: "")
         }
 
-        // ── 3. Top HUD ────────────────────────────────────────────────────────
+        MeasureHud(
+            uiState = uiState,
+            overlay = { overlayState.value },
+            snackbarHostState = snackbarHostState,
+            onUnitTap = viewModel::cycleUnit,
+            onNavigateToSaved = onNavigateToSaved,
+            onNavigateToSettings = onNavigateToSettings,
+            onRetry = viewModel::retrySession,
+            onUndo = viewModel::undo,
+            onAddPoint = viewModel::addPoint,
+            onSave = viewModel::saveMeasurement,
+        )
+    }
+}
+
+/**
+ * Everything drawn on top of the camera feed. Kept apart from [ARScene] so it can be
+ * previewed and tested without ARCore.
+ */
+@Composable
+internal fun MeasureHud(
+    uiState: MeasureUiState,
+    overlay: () -> OverlayState,
+    snackbarHostState: SnackbarHostState,
+    onUnitTap: () -> Unit,
+    onNavigateToSaved: () -> Unit,
+    onNavigateToSettings: () -> Unit,
+    onRetry: () -> Unit,
+    onUndo: () -> Unit,
+    onAddPoint: () -> Unit,
+    onSave: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    // Recompose the badge when the accuracy level changes, not on every frame.
+    val accuracyLevel by remember(overlay) { derivedStateOf { overlay().accuracy?.level } }
+
+    Box(modifier = modifier.fillMaxSize()) {
+        MeasurementOverlay(overlay = overlay, modifier = Modifier.fillMaxSize())
+
+        DistanceLabel(overlay = overlay, unitSystem = uiState.unitSystem)
+
         TopHud(
-            modifier             = Modifier
+            modifier = Modifier
                 .align(Alignment.TopStart)
                 .fillMaxWidth()
                 .statusBarsPadding()
                 .padding(horizontal = 16.dp, vertical = 8.dp),
-            confidence           = uiState.confidence,
-            currentUnitLabel     = uiState.unitSystem.label(),
-            onUnitTap            = { viewModel.cycleUnit() },
-            onNavigateToSaved    = onNavigateToSaved,
+            badge = badgeFor(uiState.isTracking, accuracyLevel),
+            unitSystem = uiState.unitSystem,
+            onUnitTap = onUnitTap,
+            onNavigateToSaved = onNavigateToSaved,
             onNavigateToSettings = onNavigateToSettings,
         )
 
-        // ── 4. Bottom controls ────────────────────────────────────────────────
-        BottomControls(
-            modifier    = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .padding(horizontal = 24.dp, vertical = 24.dp),
-            phase       = uiState.phase,
-            isSaving    = uiState.isSaving,
-            onReset     = { viewModel.reset() },
-            onSave      = { viewModel.saveMeasurement() },
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .statusBarsPadding()
+                .padding(top = 64.dp),
         )
+
+        uiState.arError?.let { error ->
+            ArErrorCard(
+                error = error,
+                onRetry = onRetry,
+                modifier = Modifier.align(Alignment.Center),
+            )
+        }
+
+        if (uiState.arError == null) {
+            BottomControls(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .padding(horizontal = 24.dp, vertical = 24.dp),
+                guidance = uiState.guidance,
+                phase = uiState.phase,
+                canAddPoint = uiState.canAddPoint,
+                isSaving = uiState.isSaving,
+                isSaved = uiState.isSaved,
+                onUndo = onUndo,
+                onAddPoint = onAddPoint,
+                onSave = onSave,
+            )
+        }
     }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Canvas overlay
+// Canvas overlay: measuring line, points, crosshair
 // ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
-private fun MeasurementCanvas(
-    screenPointA:  Offset?,
-    screenPointB:  Offset?,
-    dotRadiusPx:   Float,
-    dotOutlinePx:  Float,
-    strokeWidthPx: Float,
+private fun MeasurementOverlay(
+    overlay: () -> OverlayState,
     modifier: Modifier = Modifier,
 ) {
+    val density = LocalDensity.current
+    val dash = remember(density) {
+        with(density) { PathEffect.dashPathEffect(floatArrayOf(10.dp.toPx(), 7.dp.toPx())) }
+    }
     Canvas(modifier = modifier) {
-        if (screenPointA == null && screenPointB == null) return@Canvas
+        // Reading the state here only invalidates drawing, not composition.
+        val state = overlay()
 
-        // Connecting line (drawn first so dots sit on top)
-        if (screenPointA != null && screenPointB != null) {
+        state.segment?.let { segment ->
+            val start = segment.start.toOffset()
+            val end = segment.end.toOffset()
+            // Dark halo keeps the line visible on bright surfaces.
             drawLine(
-                color       = Color.White.copy(alpha = 0.75f),
-                start       = screenPointA,
-                end         = screenPointB,
-                strokeWidth = strokeWidthPx,
-                cap         = StrokeCap.Round,
+                color = Color.Black.copy(alpha = 0.35f),
+                start = start,
+                end = end,
+                strokeWidth = 5.dp.toPx(),
+                cap = StrokeCap.Round,
+            )
+            drawLine(
+                color = Color.White.copy(alpha = 0.9f),
+                start = start,
+                end = end,
+                strokeWidth = 2.5.dp.toPx(),
+                cap = StrokeCap.Round,
+                pathEffect = if (state.isLive) dash else null,
             )
         }
 
-        // Dot A
-        if (screenPointA != null) {
-            // Outer ring
-            drawCircle(
-                color  = Color.White.copy(alpha = 0.6f),
-                radius = dotRadiusPx + dotOutlinePx,
-                center = screenPointA,
-            )
-            // Filled core
-            drawCircle(
-                color  = AmberBottom,
-                radius = dotRadiusPx,
-                center = screenPointA,
-            )
-        }
-
-        // Dot B (same style as A — both endpoints look identical)
-        if (screenPointB != null) {
-            drawCircle(
-                color  = Color.White.copy(alpha = 0.6f),
-                radius = dotRadiusPx + dotOutlinePx,
-                center = screenPointB,
-            )
-            drawCircle(
-                color  = AmberBottom,
-                radius = dotRadiusPx,
-                center = screenPointB,
-            )
-        }
+        state.pointA?.let { drawMeasurePoint(it.toOffset()) }
+        state.pointB?.let { drawMeasurePoint(it.toOffset()) }
+        drawCrosshair(state.crosshair, dash)
     }
 }
 
+private fun DrawScope.drawMeasurePoint(position: Offset) {
+    drawCircle(color = Color.White.copy(alpha = 0.7f), radius = 9.dp.toPx(), center = position)
+    drawCircle(color = AmberBottom, radius = 7.dp.toPx(), center = position)
+}
+
+private val CrosshairRadius = 20.dp
+
+private fun DrawScope.drawCrosshair(state: CrosshairState, dash: PathEffect) {
+    if (state == CrosshairState.HIDDEN) return
+    val onSurface = state == CrosshairState.ON_SURFACE
+    val color = if (onSurface) AmberTop else Color.White.copy(alpha = 0.6f)
+    val radius = CrosshairRadius.toPx()
+    drawCircle(
+        color = Color.Black.copy(alpha = 0.3f),
+        radius = radius,
+        center = center,
+        style = Stroke(width = 4.dp.toPx()),
+    )
+    drawCircle(
+        color = color,
+        radius = radius,
+        center = center,
+        style = Stroke(width = 2.dp.toPx(), pathEffect = if (onSurface) null else dash),
+    )
+    drawCircle(color = color, radius = 2.5.dp.toPx(), center = center)
+}
+
+private fun ScreenPoint.toOffset() = Offset(x, y)
+
 // ─────────────────────────────────────────────────────────────────────────────
-// Distance pill
+// Distance label at the midpoint of the line
 // ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
-private fun DistancePill(
-    text: String,
+private fun DistanceLabel(
+    overlay: () -> OverlayState,
+    unitSystem: UnitSystem,
     modifier: Modifier = Modifier,
 ) {
+    // Small leaf that recomposes at frame rate while a line is shown.
+    val state = overlay()
+    val segment = state.segment ?: return
+    val distance = state.distanceMeters ?: return
+    val density = LocalDensity.current
+    val gapPx = with(density) { 16.dp.roundToPx() }
+    val keepOutPx = with(density) { (CrosshairRadius + 12.dp).roundToPx() }
+
     Surface(
-        modifier  = modifier,
-        shape     = RoundedCornerShape(8.dp),
-        color     = InkBackground.copy(alpha = 0.82f),
-        tonalElevation = 0.dp,
+        modifier = modifier.layout { measurable, constraints ->
+            val placeable = measurable.measure(constraints.copy(minWidth = 0, minHeight = 0))
+            layout(placeable.width, placeable.height) {
+                placeable.place(
+                    distanceLabelPosition(
+                        segment = segment,
+                        labelSize = IntSize(placeable.width, placeable.height),
+                        screenSize = IntSize(constraints.maxWidth, constraints.maxHeight),
+                        gap = gapPx,
+                        crosshairKeepOut = keepOutPx,
+                    ),
+                )
+            }
+        },
+        shape = RoundedCornerShape(8.dp),
+        color = InkBackground.copy(alpha = 0.82f),
     ) {
-        Text(
-            text      = text,
-            style     = TapeMeasurement.Medium,
-            color     = AmberTop,
-            modifier  = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-            textAlign = TextAlign.Center,
-        )
+        Column(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(
+                text = unitSystem.format(distance),
+                style = TapeMeasurement.Medium,
+                color = AmberTop,
+            )
+            state.accuracy?.let { accuracy ->
+                Text(
+                    text = stringResource(
+                        R.string.measure_uncertainty_estimated,
+                        unitSystem.formatUncertainty(accuracy.uncertaintyMeters),
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.White.copy(alpha = 0.8f),
+                )
+            }
+        }
     }
 }
 
+/**
+ * Where to put the distance label: centred above the line's midpoint, below it if that would
+ * cover the crosshair, beside the crosshair as a last resort — always fully on screen. The
+ * crosshair must stay visible, since it is what the user aims with.
+ */
+internal fun distanceLabelPosition(
+    segment: ScreenSegment,
+    labelSize: IntSize,
+    screenSize: IntSize,
+    gap: Int,
+    crosshairKeepOut: Int,
+): IntOffset {
+    val midX = (segment.start.x + segment.end.x) / 2f
+    val midY = (segment.start.y + segment.end.y) / 2f
+    val centre = IntOffset(screenSize.width / 2, screenSize.height / 2)
+    val keepOut = IntRect(
+        left = centre.x - crosshairKeepOut,
+        top = centre.y - crosshairKeepOut,
+        right = centre.x + crosshairKeepOut,
+        bottom = centre.y + crosshairKeepOut,
+    )
+
+    fun onScreen(x: Float, y: Float) = IntOffset(
+        x.roundToInt().coerceIn(0, (screenSize.width - labelSize.width).coerceAtLeast(0)),
+        y.roundToInt().coerceIn(0, (screenSize.height - labelSize.height).coerceAtLeast(0)),
+    )
+    fun IntOffset.coversCrosshair() = IntRect(this, labelSize).overlaps(keepOut)
+
+    val x = midX - labelSize.width / 2f
+    val above = onScreen(x, midY - labelSize.height - gap)
+    if (!above.coversCrosshair()) return above
+    val below = onScreen(x, midY + gap)
+    if (!below.coversCrosshair()) return below
+    val besideX = if (midX < centre.x) keepOut.left - gap - labelSize.width.toFloat() else keepOut.right + gap.toFloat()
+    return onScreen(besideX, centre.y - labelSize.height / 2f)
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
-// Top HUD: confidence badge + unit chip + nav icons
+// Top HUD: accuracy badge + unit chip + navigation
 // ─────────────────────────────────────────────────────────────────────────────
+
+private enum class Badge(@StringRes val label: Int, val color: Color) {
+    NO_TRACKING(R.string.measure_accuracy_no_tracking, ConfidenceLow),
+    TRACKING(R.string.measure_accuracy_tracking, ConfidenceHigh),
+    GOOD(R.string.measure_accuracy_good, ConfidenceHigh),
+    FAIR(R.string.measure_accuracy_fair, ConfidenceMedium),
+    POOR(R.string.measure_accuracy_poor, ConfidenceLow),
+}
+
+private fun badgeFor(isTracking: Boolean, level: AccuracyLevel?) = when {
+    !isTracking -> Badge.NO_TRACKING
+    level == null -> Badge.TRACKING
+    level == AccuracyLevel.GOOD -> Badge.GOOD
+    level == AccuracyLevel.FAIR -> Badge.FAIR
+    else -> Badge.POOR
+}
 
 @Composable
 private fun TopHud(
-    confidence:           TrackingConfidence,
-    currentUnitLabel:     String,
-    onUnitTap:            () -> Unit,
-    onNavigateToSaved:    () -> Unit,
+    badge: Badge,
+    unitSystem: UnitSystem,
+    onUnitTap: () -> Unit,
+    onNavigateToSaved: () -> Unit,
     onNavigateToSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Row(
-        modifier              = modifier,
+        modifier = modifier,
         horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment     = Alignment.CenterVertically,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Confidence badge (left)
-        ConfidenceBadge(confidence = confidence)
+        AccuracyBadge(badge = badge)
 
-        // Unit chip + nav icons (right)
         Row(verticalAlignment = Alignment.CenterVertically) {
-            UnitChip(label = currentUnitLabel, onClick = onUnitTap)
+            UnitChip(unitSystem = unitSystem, onClick = onUnitTap)
             Spacer(Modifier.width(4.dp))
             IconButton(onClick = onNavigateToSaved) {
                 Icon(
-                    imageVector        = Icons.Outlined.List,
-                    contentDescription = "Saved measurements",
-                    tint               = Color.White.copy(alpha = 0.8f),
+                    imageVector = Icons.AutoMirrored.Outlined.List,
+                    contentDescription = stringResource(R.string.measure_open_saved),
+                    tint = Color.White.copy(alpha = 0.85f),
                 )
             }
             IconButton(onClick = onNavigateToSettings) {
                 Icon(
-                    imageVector        = Icons.Outlined.Settings,
-                    contentDescription = "Settings",
-                    tint               = Color.White.copy(alpha = 0.8f),
+                    imageVector = Icons.Outlined.Settings,
+                    contentDescription = stringResource(R.string.measure_open_settings),
+                    tint = Color.White.copy(alpha = 0.85f),
                 )
             }
         }
@@ -309,156 +497,223 @@ private fun TopHud(
 }
 
 @Composable
-private fun ConfidenceBadge(
-    confidence: TrackingConfidence,
-    modifier: Modifier = Modifier,
-) {
-    val dotColor = when (confidence) {
-        TrackingConfidence.HIGH         -> ConfidenceHigh
-        TrackingConfidence.LOW          -> ConfidenceMedium
-        TrackingConfidence.NOT_TRACKING -> ConfidenceLow
-    }
-
+private fun AccuracyBadge(badge: Badge, modifier: Modifier = Modifier) {
     Surface(
-        modifier       = modifier,
-        shape          = RoundedCornerShape(20.dp),
-        color          = InkBackground.copy(alpha = 0.72f),
-        tonalElevation = 0.dp,
+        modifier = modifier,
+        shape = RoundedCornerShape(20.dp),
+        color = InkBackground.copy(alpha = 0.72f),
     ) {
         Row(
-            modifier          = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(
                 modifier = Modifier
                     .size(8.dp)
-                    .background(dotColor, CircleShape),
+                    .background(badge.color, CircleShape),
             )
-            Spacer(Modifier.width(6.dp))
-            Column {
-                Text(
-                    text  = confidence.label(),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color.White,
-                )
-                Text(
-                    text  = confidence.accuracyHint(),
-                    style = MaterialTheme.typography.bodySmall.copy(
-                        fontSize = MaterialTheme.typography.bodySmall.fontSize * 0.85f,
-                    ),
-                    color = Color.White.copy(alpha = 0.6f),
-                )
-            }
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = stringResource(badge.label),
+                style = MaterialTheme.typography.bodySmall,
+                color = Color.White,
+            )
         }
     }
 }
 
 @Composable
 private fun UnitChip(
-    label:   String,
+    unitSystem: UnitSystem,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val description = stringResource(R.string.measure_change_unit, unitSystem.label())
     Surface(
-        modifier  = modifier,
-        shape     = RoundedCornerShape(20.dp),
-        color     = InkBackground.copy(alpha = 0.72f),
-        onClick   = onClick,
+        modifier = modifier.semantics { contentDescription = description },
+        shape = RoundedCornerShape(20.dp),
+        color = InkBackground.copy(alpha = 0.72f),
+        onClick = onClick,
     ) {
         Text(
-            text     = label,
-            style    = MaterialTheme.typography.labelLarge,
-            color    = AmberTop,
+            text = unitSystem.label(),
+            style = MaterialTheme.typography.labelLarge,
+            color = AmberTop,
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
         )
     }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Bottom controls: hint text, Reset, Save
+// Bottom controls: hint, Undo / Add point / Save
 // ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
 private fun BottomControls(
-    phase:    MeasurePhase,
+    guidance: Guidance,
+    phase: MeasurePhase,
+    canAddPoint: Boolean,
     isSaving: Boolean,
-    onReset:  () -> Unit,
-    onSave:   () -> Unit,
+    isSaved: Boolean,
+    onUndo: () -> Unit,
+    onAddPoint: () -> Unit,
+    onSave: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
-        modifier              = modifier,
-        horizontalAlignment   = Alignment.CenterHorizontally,
-        verticalArrangement   = Arrangement.spacedBy(12.dp),
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
-        // Hint text changes per phase
-        val hint = when (phase) {
-            MeasurePhase.IDLE    -> "Point at a flat surface, then tap to place the first point."
-            MeasurePhase.POINT_A -> "First point set. Tap to place the second point."
-            MeasurePhase.BOTH    -> "Tap anywhere to start a new measurement."
-        }
         Text(
-            text      = hint,
-            style     = MaterialTheme.typography.bodySmall,
-            color     = Color.White.copy(alpha = 0.75f),
+            text = stringResource(guidance.textRes()),
+            style = MaterialTheme.typography.bodyMedium,
+            color = Color.White,
             textAlign = TextAlign.Center,
-            modifier  = Modifier
-                .background(InkBackground.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+            modifier = Modifier
+                .background(InkBackground.copy(alpha = 0.6f), RoundedCornerShape(8.dp))
                 .padding(horizontal = 16.dp, vertical = 8.dp),
         )
 
-        // Reset + Save only appear once both points are placed
-        AnimatedVisibility(
-            visible = phase == MeasurePhase.BOTH,
-            enter   = fadeIn(),
-            exit    = fadeOut(),
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(32.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                modifier              = Modifier.fillMaxWidth(),
-            ) {
-                // Reset button
-                Button(
-                    onClick = onReset,
-                    modifier = Modifier.weight(1f),
-                    shape    = MaterialTheme.shapes.medium,
-                    colors   = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f),
-                        contentColor   = MaterialTheme.colorScheme.onSurface,
-                    ),
-                ) {
-                    Icon(
-                        imageVector        = Icons.Outlined.Refresh,
-                        contentDescription = null,
-                        modifier           = Modifier.size(18.dp),
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text("Reset", style = MaterialTheme.typography.labelLarge)
-                }
+            RoundIconButton(
+                icon = Icons.AutoMirrored.Outlined.Undo,
+                contentDescription = stringResource(R.string.measure_undo),
+                enabled = phase != MeasurePhase.IDLE,
+                onClick = onUndo,
+            )
+            AddPointButton(enabled = canAddPoint, onClick = onAddPoint)
+            RoundIconButton(
+                icon = if (isSaved) Icons.Filled.BookmarkAdded else Icons.Outlined.BookmarkAdd,
+                contentDescription = stringResource(
+                    if (isSaved) R.string.measure_saved_state else R.string.measure_save,
+                ),
+                enabled = phase == MeasurePhase.BOTH && !isSaving && !isSaved,
+                onClick = onSave,
+            )
+        }
+    }
+}
 
-                // Save button (wires to Room in item 6)
-                Button(
-                    onClick  = onSave,
-                    enabled  = !isSaving,
-                    modifier = Modifier.weight(1f),
-                    shape    = MaterialTheme.shapes.medium,
-                    colors   = ButtonDefaults.buttonColors(
-                        containerColor = AmberBottom,
-                        contentColor   = InkBackground,
-                    ),
-                ) {
-                    Icon(
-                        imageVector        = Icons.Outlined.Bookmark,
-                        contentDescription = null,
-                        modifier           = Modifier.size(18.dp),
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        text  = if (isSaving) "Saving…" else "Save",
-                        style = MaterialTheme.typography.labelLarge,
-                    )
-                }
+@Composable
+private fun AddPointButton(enabled: Boolean, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        enabled = enabled,
+        shape = CircleShape,
+        color = if (enabled) AmberBottom else AmberBottom.copy(alpha = 0.35f),
+        contentColor = InkBackground,
+        modifier = Modifier.size(72.dp),
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(
+                imageVector = Icons.Filled.Add,
+                contentDescription = stringResource(R.string.measure_add_point),
+                modifier = Modifier.size(36.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun RoundIconButton(
+    icon: ImageVector,
+    contentDescription: String,
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    Surface(
+        onClick = onClick,
+        enabled = enabled,
+        shape = CircleShape,
+        color = InkBackground.copy(alpha = 0.72f),
+        contentColor = if (enabled) Color.White else Color.White.copy(alpha = 0.35f),
+        modifier = Modifier.size(52.dp),
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(imageVector = icon, contentDescription = contentDescription)
+        }
+    }
+}
+
+@StringRes
+private fun Guidance.textRes(): Int = when (this) {
+    Guidance.STARTING -> R.string.measure_guidance_starting
+    Guidance.TOO_DARK -> R.string.measure_guidance_too_dark
+    Guidance.TOO_FAST -> R.string.measure_guidance_too_fast
+    Guidance.LOW_TEXTURE -> R.string.measure_guidance_low_texture
+    Guidance.CAMERA_UNAVAILABLE -> R.string.measure_guidance_camera_unavailable
+    Guidance.AR_STOPPED -> R.string.measure_guidance_ar_stopped
+    Guidance.FIND_SURFACE -> R.string.measure_guidance_find_surface
+    Guidance.AIM_AT_SURFACE -> R.string.measure_guidance_aim_surface
+    Guidance.PLACE_START -> R.string.measure_guidance_place_start
+    Guidance.PLACE_END -> R.string.measure_guidance_place_end
+    Guidance.MEASURED -> R.string.measure_guidance_measured
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Session errors
+// ─────────────────────────────────────────────────────────────────────────────
+
+@Composable
+private fun ArErrorCard(
+    error: ArError,
+    onRetry: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier.padding(24.dp),
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surface,
+    ) {
+        Column(
+            modifier = Modifier.padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Text(
+                text = stringResource(error.messageRes()),
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+                textAlign = TextAlign.Center,
+            )
+            Button(
+                onClick = onRetry,
+                shape = MaterialTheme.shapes.medium,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = AmberBottom,
+                    contentColor = InkBackground,
+                ),
+            ) {
+                Text(stringResource(R.string.ar_error_retry), style = MaterialTheme.typography.labelLarge)
             }
         }
     }
+}
+
+@StringRes
+private fun ArError.messageRes(): Int = when (this) {
+    ArError.INSTALL_DECLINED -> R.string.ar_error_install_declined
+    ArError.ARCORE_UPDATE_REQUIRED -> R.string.ar_error_arcore_update_required
+    ArError.APP_UPDATE_REQUIRED -> R.string.ar_error_app_update_required
+    ArError.CAMERA_UNAVAILABLE -> R.string.ar_error_camera_unavailable
+    ArError.CAMERA_PERMISSION -> R.string.ar_error_camera_permission
+    ArError.OTHER -> R.string.ar_error_other
+}
+
+private fun View.confirmHaptic() {
+    performHapticFeedback(
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) HapticFeedbackConstants.CONFIRM
+        else HapticFeedbackConstants.VIRTUAL_KEY,
+    )
+}
+
+private fun View.rejectHaptic() {
+    performHapticFeedback(
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) HapticFeedbackConstants.REJECT
+        else HapticFeedbackConstants.LONG_PRESS,
+    )
 }

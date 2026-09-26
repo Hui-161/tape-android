@@ -1,58 +1,67 @@
 package com.tape.measure.ui.screens.measure
 
-import android.opengl.Matrix
-import androidx.compose.ui.geometry.Offset
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.google.ar.core.Anchor
-import com.google.ar.core.Camera
-import com.google.ar.core.Frame
-import com.google.ar.core.HitResult
-import com.google.ar.core.Plane
-import com.google.ar.core.TrackingState
 import com.tape.measure.data.db.MeasurementEntity
 import com.tape.measure.data.prefs.UserPreferencesRepository
 import com.tape.measure.data.repository.MeasurementRepository
+import com.tape.measure.domain.measure.AccuracyEstimate
+import com.tape.measure.domain.measure.AccuracyEstimator
+import com.tape.measure.domain.measure.AccuracyLevel
+import com.tape.measure.domain.measure.ArError
+import com.tape.measure.domain.measure.FrameSample
+import com.tape.measure.domain.measure.MeasureGeometry
+import com.tape.measure.domain.measure.SurfaceHit
+import com.tape.measure.domain.measure.TrackedPoint
+import com.tape.measure.domain.measure.TrackingProblem
+import com.tape.measure.domain.measure.Vec3
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.util.UUID
 import javax.inject.Inject
-import kotlin.math.sqrt
 
 /**
- * ViewModel for the AR measurement screen.
+ * Live crosshair measuring.
  *
- * Threading model
- * ───────────────
- * • [onFrame] is called from SceneView's GL render thread (60 fps).
- *   We do the 3-D→2-D projection there and write to [_uiState] directly —
- *   StateFlow.update() is internally thread-safe via CAS, so no dispatch needed.
- *   We extract only primitive FloatArrays from ARCore objects (no ARCore handles
- *   escape the render thread beyond what ARCore's own threading model allows).
+ * Every AR frame arrives as a [FrameSample] in [onFrame]; the crosshair in the middle of the
+ * screen is hit-tested against detected surfaces. [addPoint] fixes the start point at the
+ * crosshair, after which a live line follows the crosshair until [addPoint] fixes the end point.
  *
- * • [onTap], [cycleUnit], [reset] are called from the main thread (gesture callbacks).
- *   Anchor references are @Volatile so the render thread always sees the latest value
- *   without needing a full lock.
+ * Threading: SceneView runs its render loop on the main-thread Choreographer, so frame callbacks
+ * and user actions all arrive on the main thread and need no synchronisation.
  *
- * Save flow
- * ─────────
- * Room repository will be injected here in a future step (item 6). The [saveMeasurement]
- * stub already has the right signature so MeasureScreen doesn't need to change later.
+ * Points belong to the AR session that created them. When the scene is disposed (navigation,
+ * error retry) the session is closed and the points are dropped without touching them again.
  */
 @HiltViewModel
 class MeasureViewModel @Inject constructor(
     private val repository: MeasurementRepository,
-    prefs: UserPreferencesRepository,
+    private val prefs: UserPreferencesRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(MeasureUiState())
     val uiState: StateFlow<MeasureUiState> = _uiState.asStateFlow()
+
+    private val _overlay = MutableStateFlow(OverlayState())
+    val overlay: StateFlow<OverlayState> = _overlay.asStateFlow()
+
+    private val _events = Channel<MeasureEvent>(Channel.BUFFERED)
+    val events: Flow<MeasureEvent> = _events.receiveAsFlow()
+
+    /** A placed point and the uncertainty it had when it was placed. */
+    private class PlacedPoint(val point: TrackedPoint, val uncertainty: Float)
+
+    private val points = mutableListOf<PlacedPoint>()
+    private var crosshairHit: SurfaceHit? = null
 
     init {
         prefs.unitFlow
@@ -60,195 +69,199 @@ class MeasureViewModel @Inject constructor(
             .launchIn(viewModelScope)
     }
 
-    // Anchor handles — written on main thread, read on render thread.
-    @Volatile private var anchorA: Anchor? = null
-    @Volatile private var anchorB: Anchor? = null
+    // ── AR callbacks ─────────────────────────────────────────────────────────
 
-    // Pending tap screen coordinates — set from main thread, consumed on render thread.
-    @Volatile private var pendingTapX: Float = -1f
-    @Volatile private var pendingTapY: Float = -1f
-
-    // Viewport dimensions set once from MeasureScreen's onGloballyPositioned.
-    @Volatile private var viewportWidth: Int = 1
-    @Volatile private var viewportHeight: Int = 1
-
-    // Reusable float arrays to avoid per-frame allocation on the render thread.
-    private val viewMatrix = FloatArray(16)
-    private val projMatrix = FloatArray(16)
-    private val worldPoint = FloatArray(4)
-    private val viewPoint  = FloatArray(4)
-    private val clipPoint  = FloatArray(4)
-
-    // ── Lifecycle hooks (called from MeasureScreen) ──────────────────────────
-
-    /** Called once after ARScene is laid out; saves pixel dimensions for projection. */
-    fun setViewport(width: Int, height: Int) {
-        if (width > 0 && height > 0) {
-            viewportWidth = width
-            viewportHeight = height
-        }
-    }
-
-    // ── Per-frame update (render thread) ─────────────────────────────────────
-
-    /**
-     * Called every AR frame from the GL render thread. Reads tracking state,
-     * processes any queued tap via [Frame.hitTest], projects anchor poses to
-     * screen space, and pushes an updated [MeasureUiState].
-     */
-    fun onFrame(camera: Camera, frame: Frame) {
-        val confidence = camera.trackingState.toConfidence()
-
-        if (camera.trackingState != TrackingState.TRACKING) {
-            _uiState.update { it.copy(confidence = confidence) }
+    fun onFrame(sample: FrameSample) {
+        if (!sample.isTracking) {
+            // Placed points keep their last screen position otherwise, which would be wrong
+            // as soon as the phone moves.
+            crosshairHit = null
+            _overlay.value = OverlayState()
+            publishGuidance(sample)
             return
         }
-
-        // Consume pending tap — hit-test against detected planes.
-        val tapX = pendingTapX
-        val tapY = pendingTapY
-        if (tapX >= 0f) {
-            pendingTapX = -1f
-            pendingTapY = -1f
-            frame.hitTest(tapX, tapY)
-                .firstOrNull { it.trackable is Plane && it.trackable.trackingState == TrackingState.TRACKING }
-                ?.let { onTap(it) }
-        }
-
-        // Grab matrices — safe to call on render thread after Session.update().
-        camera.getViewMatrix(viewMatrix, 0)
-        camera.getProjectionMatrix(projMatrix, 0, 0.1f, 100f)
-
-        val poseA = anchorA?.takeIf { it.trackingState == TrackingState.TRACKING }?.pose
-        val poseB = anchorB?.takeIf { it.trackingState == TrackingState.TRACKING }?.pose
-
-        _uiState.update { state ->
-            state.copy(
-                confidence     = confidence,
-                screenPointA   = poseA?.let { project(it.tx(), it.ty(), it.tz()) },
-                screenPointB   = poseB?.let { project(it.tx(), it.ty(), it.tz()) },
-                distanceMeters = if (poseA != null && poseB != null) {
-                    distance(
-                        poseA.tx(), poseA.ty(), poseA.tz(),
-                        poseB.tx(), poseB.ty(), poseB.tz(),
-                    )
-                } else null,
-            )
-        }
+        crosshairHit = sample.crosshairHit
+        if (points.any { it.point.isLost }) releaseAll()
+        _overlay.value = buildOverlay(sample)
+        publishGuidance(sample)
     }
 
-    // ── User-interaction handlers (main thread) ───────────────────────────────
+    /** A new session never tracks the points of a previous one. */
+    fun onSessionCreated() = forgetPoints()
 
-    /** Queues screen-space tap coordinates to be processed in the next [onFrame] call. */
-    fun enqueueTap(x: Float, y: Float) {
-        pendingTapX = x
-        pendingTapY = y
+    /** The session is closed together with the scene, which also frees its anchors. */
+    fun onArSceneDisposed() {
+        forgetPoints()
+        _overlay.value = OverlayState()
     }
 
-    /**
-     * Places an anchor at the given hit result. Called from [onFrame] on the render thread
-     * after a successful plane hit test, or directly from tests.
-     */
-    fun onTap(hitResult: HitResult) {
-        when (_uiState.value.phase) {
-            MeasurePhase.IDLE -> {
-                anchorA = hitResult.createAnchor()
-                _uiState.update { it.copy(phase = MeasurePhase.POINT_A) }
-            }
-            MeasurePhase.POINT_A -> {
-                anchorB = hitResult.createAnchor()
-                _uiState.update { it.copy(phase = MeasurePhase.BOTH) }
-            }
-            MeasurePhase.BOTH -> reset()   // third tap = start over
+    fun onArError(error: ArError) = _uiState.update { it.copy(arError = error) }
+
+    fun retrySession() = _uiState.update { it.copy(arError = null, sessionAttempt = it.sessionAttempt + 1) }
+
+    // ── User actions ─────────────────────────────────────────────────────────
+
+    /** Places a point at the crosshair. A third point starts a new measurement. */
+    fun addPoint() {
+        val hit = crosshairHit
+        if (hit == null) {
+            _events.trySend(MeasureEvent.NO_SURFACE)
+            return
         }
+        if (points.size >= 2) releaseAll()
+        val point = hit.createPoint()
+        if (point == null) {
+            _events.trySend(MeasureEvent.NO_SURFACE)
+            return
+        }
+        points += PlacedPoint(point, AccuracyEstimator.pointUncertainty(hit.kind, hit.cameraDistanceMeters))
+        onPointsChanged()
+        _events.trySend(MeasureEvent.POINT_ADDED)
     }
 
-    /** Cycles the active unit display: CM → M → IN → FT → CM. */
+    /** Removes the most recently placed point. */
+    fun undo() {
+        val last = points.removeLastOrNull() ?: return
+        last.point.release()
+        onPointsChanged()
+    }
+
+    /** Cycles cm → m → in → ft and stores the choice as the app-wide unit. */
     fun cycleUnit() {
-        _uiState.update { it.copy(unitSystem = it.unitSystem.next()) }
+        val next = _uiState.value.unitSystem.next()
+        _uiState.update { it.copy(unitSystem = next) }
+        viewModelScope.launch { prefs.setUnit(next) }
     }
 
-    /** Detaches both anchors and returns the state machine to IDLE. */
-    fun reset() {
-        anchorA?.detach().also { anchorA = null }
-        anchorB?.detach().also { anchorB = null }
-        _uiState.update {
-            it.copy(
-                phase          = MeasurePhase.IDLE,
-                screenPointA   = null,
-                screenPointB   = null,
-                distanceMeters = null,
-                justSaved      = false,
-            )
-        }
-    }
-
-    fun saveMeasurement(label: String = "") {
-        val dist = _uiState.value.distanceMeters ?: return
-        val unit = _uiState.value.unitSystem
-        val conf = when (_uiState.value.confidence) {
-            TrackingConfidence.HIGH         -> 0.9f
-            TrackingConfidence.LOW          -> 0.5f
-            TrackingConfidence.NOT_TRACKING -> 0.1f
-        }
+    fun saveMeasurement() {
+        val state = _uiState.value
+        val overlay = _overlay.value
+        val distance = overlay.distanceMeters
+        if (state.phase != MeasurePhase.BOTH || state.isSaving || state.isSaved || distance == null) return
+        _uiState.update { it.copy(isSaving = true) }
         viewModelScope.launch {
             repository.save(
                 MeasurementEntity(
-                    id            = UUID.randomUUID().toString(),
-                    distanceMeters = dist,
-                    unit          = unit.name,
-                    label         = label.ifBlank { null },
-                    confidence    = conf,
-                    createdAt     = System.currentTimeMillis(),
-                )
+                    id = UUID.randomUUID().toString(),
+                    distanceMeters = distance,
+                    unit = state.unitSystem.name,
+                    label = null,
+                    confidence = overlay.accuracy.toScore(),
+                    createdAt = System.currentTimeMillis(),
+                ),
             )
-            _uiState.update { it.copy(justSaved = true) }
+            _uiState.update { it.copy(isSaving = false, isSaved = true) }
+            _events.send(MeasureEvent.SAVED)
         }
     }
 
     override fun onCleared() {
-        anchorA?.detach()
-        anchorB?.detach()
+        // The scene, and with it the session, is disposed before the ViewModel is cleared.
+        points.clear()
         super.onCleared()
     }
 
-    // ── Private math ─────────────────────────────────────────────────────────
+    // ── Internals ────────────────────────────────────────────────────────────
 
-    /**
-     * Projects a world-space point (wx, wy, wz) to 2-D screen pixels.
-     * Returns null when the point is behind the camera (view-space Z ≥ 0).
-     *
-     * NDC → Screen mapping:
-     *   screenX = (ndcX + 1) / 2 * width
-     *   screenY = (1 − ndcY) / 2 * height   ← Y is flipped (NDC Y=1 = top of screen)
-     */
-    private fun project(wx: Float, wy: Float, wz: Float): Offset? {
-        worldPoint[0] = wx; worldPoint[1] = wy; worldPoint[2] = wz; worldPoint[3] = 1f
+    private fun onPointsChanged() {
+        _uiState.update { it.copy(phase = phaseOf(points.size), isSaved = false) }
+    }
 
-        Matrix.multiplyMV(viewPoint, 0, viewMatrix, 0, worldPoint, 0)
-        if (viewPoint[2] >= 0f) return null  // behind camera
+    private fun releaseAll() {
+        points.forEach { it.point.release() }
+        points.clear()
+        onPointsChanged()
+    }
 
-        Matrix.multiplyMV(clipPoint, 0, projMatrix, 0, viewPoint, 0)
-        val w = clipPoint[3]
-        if (w == 0f) return null
+    private fun forgetPoints() {
+        points.clear()
+        crosshairHit = null
+        onPointsChanged()
+    }
 
-        return Offset(
-            x = (clipPoint[0] / w + 1f) / 2f * viewportWidth,
-            y = (1f - clipPoint[1] / w) / 2f * viewportHeight,
+    private fun buildOverlay(sample: FrameSample): OverlayState {
+        val hit = sample.crosshairHit
+        val start = points.getOrNull(0)
+        val end = points.getOrNull(1)
+        val startPos = start?.point?.currentPosition()
+        val endPos = end?.point?.currentPosition()
+
+        // With only the start point placed, the line runs live to the crosshair.
+        val liveHit = if (start != null && end == null) hit else null
+        val segmentEnd: Vec3?
+        val segmentEndUncertainty: Float
+        when {
+            end != null -> {
+                segmentEnd = endPos
+                segmentEndUncertainty = end.uncertainty
+            }
+            liveHit != null -> {
+                segmentEnd = liveHit.position
+                segmentEndUncertainty =
+                    AccuracyEstimator.pointUncertainty(liveHit.kind, liveHit.cameraDistanceMeters)
+            }
+            else -> {
+                segmentEnd = null
+                segmentEndUncertainty = 0f
+            }
+        }
+        val distance = if (startPos != null && segmentEnd != null) startPos.distanceTo(segmentEnd) else null
+
+        return OverlayState(
+            crosshair = if (hit != null) CrosshairState.ON_SURFACE else CrosshairState.SEARCHING,
+            pointA = startPos?.let { project(sample, it) },
+            pointB = endPos?.let { project(sample, it) },
+            segment = if (startPos != null && segmentEnd != null) {
+                MeasureGeometry.projectSegment(
+                    sample.view, sample.projection, startPos, segmentEnd, sample.width, sample.height,
+                )
+            } else null,
+            isLive = liveHit != null,
+            distanceMeters = distance,
+            accuracy = if (start != null && distance != null) {
+                AccuracyEstimator.estimate(distance, start.uncertainty, segmentEndUncertainty)
+            } else null,
         )
     }
 
-    private fun distance(
-        ax: Float, ay: Float, az: Float,
-        bx: Float, by: Float, bz: Float,
-    ): Float {
-        val dx = ax - bx; val dy = ay - by; val dz = az - bz
-        return sqrt(dx * dx + dy * dy + dz * dz)
-    }
+    private fun project(sample: FrameSample, point: Vec3) =
+        MeasureGeometry.projectPoint(sample.view, sample.projection, point, sample.width, sample.height)
 
-    private fun TrackingState.toConfidence(): TrackingConfidence = when (this) {
-        TrackingState.TRACKING -> TrackingConfidence.HIGH
-        TrackingState.PAUSED   -> TrackingConfidence.LOW
-        TrackingState.STOPPED  -> TrackingConfidence.NOT_TRACKING
+    private fun publishGuidance(sample: FrameSample) {
+        val hit = sample.crosshairHit.takeIf { sample.isTracking }
+        val guidance = when {
+            !sample.isTracking -> sample.problem.toGuidance()
+            points.size >= 2 -> Guidance.MEASURED
+            hit == null && !sample.surfacesDetected -> Guidance.FIND_SURFACE
+            hit == null -> Guidance.AIM_AT_SURFACE
+            points.isEmpty() -> Guidance.PLACE_START
+            else -> Guidance.PLACE_END
+        }
+        _uiState.update {
+            it.copy(guidance = guidance, isTracking = sample.isTracking, canAddPoint = hit != null)
+        }
     }
+}
+
+private fun phaseOf(pointCount: Int) = when (pointCount) {
+    0 -> MeasurePhase.IDLE
+    1 -> MeasurePhase.POINT_A
+    else -> MeasurePhase.BOTH
+}
+
+private fun TrackingProblem.toGuidance() = when (this) {
+    TrackingProblem.NONE, TrackingProblem.INITIALIZING -> Guidance.STARTING
+    TrackingProblem.INSUFFICIENT_LIGHT -> Guidance.TOO_DARK
+    TrackingProblem.EXCESSIVE_MOTION -> Guidance.TOO_FAST
+    TrackingProblem.INSUFFICIENT_FEATURES -> Guidance.LOW_TEXTURE
+    TrackingProblem.CAMERA_UNAVAILABLE -> Guidance.CAMERA_UNAVAILABLE
+    TrackingProblem.STOPPED -> Guidance.AR_STOPPED
+}
+
+/** Coarse score for the existing `confidence` column until the schema stores the uncertainty. */
+private fun AccuracyEstimate?.toScore(): Float = when (this?.level) {
+    AccuracyLevel.GOOD -> 0.9f
+    AccuracyLevel.FAIR -> 0.6f
+    AccuracyLevel.POOR -> 0.3f
+    null -> 0f
 }

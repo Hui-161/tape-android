@@ -1,4 +1,44 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Tape</string>
+    <string name="app_name" translatable="false">Tape</string>
+
+    <!-- Measure screen: hint above the controls -->
+    <string name="measure_guidance_starting">Starting AR… move your phone slowly</string>
+    <string name="measure_guidance_too_dark">Too dark – turn on a light</string>
+    <string name="measure_guidance_too_fast">Move your phone more slowly</string>
+    <string name="measure_guidance_low_texture">Point at a surface with more detail</string>
+    <string name="measure_guidance_camera_unavailable">Camera unavailable</string>
+    <string name="measure_guidance_ar_stopped">AR tracking stopped – reopen the measure screen</string>
+    <string name="measure_guidance_find_surface">Move your phone slowly to detect surfaces</string>
+    <string name="measure_guidance_aim_surface">Aim the crosshair at a detected surface</string>
+    <string name="measure_guidance_place_start">Aim at the start point and tap +</string>
+    <string name="measure_guidance_place_end">Aim at the end point and tap +</string>
+    <string name="measure_guidance_measured">Save the result or tap + to measure again</string>
+
+    <!-- Measure screen: accuracy badge and distance label -->
+    <string name="measure_accuracy_no_tracking">No tracking</string>
+    <string name="measure_accuracy_tracking">Tracking</string>
+    <string name="measure_accuracy_good">Good accuracy</string>
+    <string name="measure_accuracy_fair">Fair accuracy</string>
+    <string name="measure_accuracy_poor">Low accuracy</string>
+    <string name="measure_uncertainty_estimated">%1$s (est.)</string>
+
+    <!-- Measure screen: controls -->
+    <string name="measure_add_point">Add point</string>
+    <string name="measure_undo">Remove last point</string>
+    <string name="measure_save">Save measurement</string>
+    <string name="measure_saved_state">Measurement saved</string>
+    <string name="measure_saved_snackbar">Measurement saved</string>
+    <string name="measure_open_saved">Saved measurements</string>
+    <string name="measure_open_settings">Settings</string>
+    <string name="measure_change_unit">Change unit, current: %1$s</string>
+
+    <!-- Measure screen: AR session errors -->
+    <string name="ar_error_install_declined">Measuring needs Google Play Services for AR. Install it to continue.</string>
+    <string name="ar_error_arcore_update_required">Google Play Services for AR is missing or out of date. Install or update it from the Play Store.</string>
+    <string name="ar_error_app_update_required">This version of Tape is too old for the installed ARCore. Please update Tape.</string>
+    <string name="ar_error_camera_unavailable">The camera is in use by another app. Close it and try again.</string>
+    <string name="ar_error_camera_permission">Tape needs camera access to measure.</string>
+    <string name="ar_error_other">AR could not be started.</string>
+    <string name="ar_error_retry">Try again</string>
 </resources>

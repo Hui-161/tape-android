@@ -1,68 +1,67 @@
 package com.tape.measure.ui.screens.measure
 
-import androidx.compose.ui.geometry.Offset
+import com.tape.measure.domain.measure.AccuracyEstimate
+import com.tape.measure.domain.measure.ArError
+import com.tape.measure.domain.measure.ScreenPoint
+import com.tape.measure.domain.measure.ScreenSegment
 import com.tape.measure.domain.model.UnitSystem
 
 /**
- * What stage the user is in for the current measurement.
+ * Where the user is in the current measurement.
  *
- *  IDLE        – no anchors placed; showing "tap to place first point" hint
- *  POINT_A     – first anchor placed; waiting for second tap
- *  BOTH        – both anchors placed; distance shown; tap resets
+ *  IDLE    – no point placed; the crosshair looks for the start point
+ *  POINT_A – start point placed; a live line follows the crosshair
+ *  BOTH    – both points placed; the result is fixed and can be saved
  */
 enum class MeasurePhase { IDLE, POINT_A, BOTH }
 
-/**
- * Reflects the ARCore camera tracking quality.
- *
- *  NOT_TRACKING – session paused or stopped; can't place points
- *  LOW          – tracking is shaky / recovering; accuracy worse
- *  HIGH         – full TRACKING state; best accuracy
- */
-enum class TrackingConfidence {
-    NOT_TRACKING,
-    LOW,
-    HIGH;
-
-    /** Short label shown in the confidence badge. */
-    fun label(): String = when (this) {
-        NOT_TRACKING -> "No tracking"
-        LOW          -> "Low accuracy"
-        HIGH         -> "Good tracking"
-    }
-
-    /**
-     * Approximate accuracy range to display next to the badge.
-     * Values are informed by ARCore's typical plane-detection accuracy
-     * at normal distances (0.5–3 m from a flat surface).
-     */
-    fun accuracyHint(): String = when (this) {
-        NOT_TRACKING -> "–"
-        LOW          -> "±3 cm"
-        HIGH         -> "±1 cm"
-    }
+/** The single hint shown above the controls, most urgent first. */
+enum class Guidance {
+    STARTING,
+    TOO_DARK,
+    TOO_FAST,
+    LOW_TEXTURE,
+    CAMERA_UNAVAILABLE,
+    AR_STOPPED,
+    FIND_SURFACE,
+    AIM_AT_SURFACE,
+    PLACE_START,
+    PLACE_END,
+    MEASURED,
 }
 
-/**
- * Complete UI snapshot for MeasureScreen — owned by [MeasureViewModel].
- *
- * [screenPointA] / [screenPointB] are in raw pixels (aligned with the
- * Compose Canvas coordinate system) and are null when the anchor is not
- * in the camera's view or isn't tracking.
- */
+enum class CrosshairState { HIDDEN, SEARCHING, ON_SURFACE }
+
+/** Screen state that changes at most a few times per second. */
 data class MeasureUiState(
     val phase: MeasurePhase = MeasurePhase.IDLE,
-    val confidence: TrackingConfidence = TrackingConfidence.NOT_TRACKING,
-    /** 2-D projection of anchor A, in screen pixels. Null = out of view. */
-    val screenPointA: Offset? = null,
-    /** 2-D projection of anchor B, in screen pixels. Null = out of view. */
-    val screenPointB: Offset? = null,
-    /** Raw distance in metres between the two anchors. */
-    val distanceMeters: Float? = null,
-    /** Which unit to display the distance in. */
-    val unitSystem: UnitSystem = UnitSystem.CM,
-    /** True while save operation is in-flight (spinner on Save button). */
+    val guidance: Guidance = Guidance.STARTING,
+    val isTracking: Boolean = false,
+    /** True while the crosshair is on a surface a point can be placed on. */
+    val canAddPoint: Boolean = false,
+    val unitSystem: UnitSystem = UnitSystem.M,
     val isSaving: Boolean = false,
-    /** Momentarily true after a successful save (for snackbar / animation). */
-    val justSaved: Boolean = false,
+    /** True once the current measurement is saved, until the next point is placed. */
+    val isSaved: Boolean = false,
+    val arError: ArError? = null,
+    /** Incremented to tear down and recreate the AR session after an error. */
+    val sessionAttempt: Int = 0,
 )
+
+/**
+ * Drawing state, recomputed on every AR frame. Read it only in drawing code or small leaf
+ * composables so the rest of the screen does not recompose at frame rate.
+ */
+data class OverlayState(
+    val crosshair: CrosshairState = CrosshairState.HIDDEN,
+    val pointA: ScreenPoint? = null,
+    val pointB: ScreenPoint? = null,
+    val segment: ScreenSegment? = null,
+    /** True while the segment ends at the crosshair instead of a placed point. */
+    val isLive: Boolean = false,
+    val distanceMeters: Float? = null,
+    val accuracy: AccuracyEstimate? = null,
+)
+
+/** One-off feedback the screen turns into haptics or a snackbar. */
+enum class MeasureEvent { POINT_ADDED, NO_SURFACE, SAVED }
