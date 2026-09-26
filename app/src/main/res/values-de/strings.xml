@@ -8,9 +8,13 @@
     <string name="measure_guidance_camera_unavailable">Kamera nicht verfügbar</string>
     <string name="measure_guidance_ar_stopped">AR-Tracking gestoppt – Messscreen neu öffnen</string>
     <string name="measure_guidance_find_surface">Handy langsam bewegen, um Flächen zu erkennen</string>
-    <string name="measure_guidance_too_far">Zu weit entfernt – näher herangehen (max. 5 m)</string>
+    <string name="measure_guidance_need_ground">Zu weit – erst den Boden in der Nähe anvisieren</string>
+    <string name="measure_guidance_aim_base">Zu weit – auf den Fußpunkt am Boden zielen</string>
+    <string name="measure_guidance_too_far">Zu weit entfernt (max. 30 m)</string>
     <string name="measure_guidance_aim_surface">Fadenkreuz auf eine erkannte Fläche richten</string>
     <string name="measure_guidance_closer">Mit + setzen – aus der Nähe wird es genauer</string>
+    <string name="measure_guidance_far_ground">Punkt auf ebenem Boden (geschätzt) – mit + setzen</string>
+    <string name="measure_guidance_far_vertical">Höhe über dem Startpunkt (geschätzt) – mit + setzen</string>
     <string name="measure_guidance_place_start">Auf den Startpunkt zielen und + tippen</string>
     <string name="measure_guidance_place_end">Auf den Endpunkt zielen und + tippen</string>
     <string name="measure_guidance_measured">Ergebnis speichern oder mit + neu messen</string>

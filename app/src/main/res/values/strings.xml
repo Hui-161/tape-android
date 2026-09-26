@@ -10,9 +10,13 @@
     <string name="measure_guidance_camera_unavailable">Camera unavailable</string>
     <string name="measure_guidance_ar_stopped">AR tracking stopped – reopen the measure screen</string>
     <string name="measure_guidance_find_surface">Move your phone slowly to detect surfaces</string>
-    <string name="measure_guidance_too_far">Too far away – move closer (max. 5 m)</string>
+    <string name="measure_guidance_need_ground">Too far – point at the ground nearby first</string>
+    <string name="measure_guidance_aim_base">Too far – aim at its base on the ground</string>
+    <string name="measure_guidance_too_far">Too far away (max. 30 m)</string>
     <string name="measure_guidance_aim_surface">Aim the crosshair at a detected surface</string>
     <string name="measure_guidance_closer">Tap + to place – closer is more accurate</string>
+    <string name="measure_guidance_far_ground">Point on level ground (estimated) – tap +</string>
+    <string name="measure_guidance_far_vertical">Height above the start point (estimated) – tap +</string>
     <string name="measure_guidance_place_start">Aim at the start point and tap +</string>
     <string name="measure_guidance_place_end">Aim at the end point and tap +</string>
     <string name="measure_guidance_measured">Save the result or tap + to measure again</string>

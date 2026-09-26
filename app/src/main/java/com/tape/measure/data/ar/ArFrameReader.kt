@@ -63,6 +63,8 @@ class ArFrameReader {
         camera.getViewMatrix(view, 0)
         camera.getProjectionMatrix(projection, 0, MeasureGeometry.NEAR_CLIP, MeasureGeometry.FAR_CLIP)
         val target = TargetSelector.select(usableHits(frame.hitTest(width / 2f, height / 2f), camera.pose))
+        val planes = session.getAllTrackables(Plane::class.java)
+            .filter { it.trackingState == TrackingState.TRACKING && it.subsumedBy == null }
         return FrameSample(
             isTracking = true,
             problem = TrackingProblem.NONE,
@@ -70,10 +72,16 @@ class ArFrameReader {
             projection = projection.copyOf(),
             width = width,
             height = height,
-            surfacesDetected = target.hit != null ||
-                session.getAllTrackables(Plane::class.java).any { it.trackingState == TrackingState.TRACKING },
+            surfacesDetected = target.hit != null || planes.isNotEmpty(),
             crosshairHit = target.hit,
-            crosshairTooFar = target.tooFar,
+            crosshairTooFarMeters = target.tooFarMeters,
+            // The floor or ground is the lowest plane; a table top is higher.
+            groundHeight = planes
+                .filter { it.type == Plane.Type.HORIZONTAL_UPWARD_FACING }
+                .minOfOrNull { it.centerPose.ty() },
+            createPointAt = { p ->
+                runCatching { AnchorPoint(session.createAnchor(Pose.makeTranslation(p.x, p.y, p.z))) }.getOrNull()
+            },
         )
     }
 

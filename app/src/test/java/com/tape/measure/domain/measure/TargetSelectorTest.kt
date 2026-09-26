@@ -1,5 +1,6 @@
 package com.tape.measure.domain.measure
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
@@ -30,6 +31,7 @@ class TargetSelectorTest {
         val target = TargetSelector.select(listOf(hit(14f, HitKind.DEPTH), hit(15f, HitKind.PLANE_VERTICAL)))
         assertNull(target.hit)
         assertTrue(target.tooFar)
+        assertEquals(14f, target.tooFarMeters!!, 0f)
     }
 
     @Test

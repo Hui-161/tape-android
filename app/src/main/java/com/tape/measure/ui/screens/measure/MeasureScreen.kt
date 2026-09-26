@@ -352,9 +352,10 @@ private val CrosshairRadius = 20.dp
 
 private fun DrawScope.drawCrosshair(state: CrosshairState, dash: PathEffect) {
     if (state == CrosshairState.HIDDEN) return
+    // Solid only on a surface; an estimate from afar is amber but dashed.
     val onSurface = state == CrosshairState.ON_SURFACE
     val color = when (state) {
-        CrosshairState.ON_SURFACE -> AmberTop
+        CrosshairState.ON_SURFACE, CrosshairState.FAR_ESTIMATE -> AmberTop
         CrosshairState.TOO_FAR -> ConfidenceLow
         else -> Color.White.copy(alpha = 0.6f)
     }
@@ -756,9 +757,13 @@ private fun Guidance.textRes(): Int = when (this) {
     Guidance.CAMERA_UNAVAILABLE -> R.string.measure_guidance_camera_unavailable
     Guidance.AR_STOPPED -> R.string.measure_guidance_ar_stopped
     Guidance.FIND_SURFACE -> R.string.measure_guidance_find_surface
+    Guidance.NEED_GROUND -> R.string.measure_guidance_need_ground
+    Guidance.AIM_AT_BASE -> R.string.measure_guidance_aim_base
     Guidance.TOO_FAR -> R.string.measure_guidance_too_far
     Guidance.AIM_AT_SURFACE -> R.string.measure_guidance_aim_surface
     Guidance.CLOSER_IS_MORE_ACCURATE -> R.string.measure_guidance_closer
+    Guidance.FAR_GROUND -> R.string.measure_guidance_far_ground
+    Guidance.FAR_VERTICAL -> R.string.measure_guidance_far_vertical
     Guidance.PLACE_START -> R.string.measure_guidance_place_start
     Guidance.PLACE_END -> R.string.measure_guidance_place_end
     Guidance.MEASURED -> R.string.measure_guidance_measured

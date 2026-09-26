@@ -4,9 +4,16 @@ package com.tape.measure.domain.measure
 class CrosshairTarget(
     /** The surface to place a point on, or null if there is none within range. */
     val hit: SurfaceHit?,
-    /** True if there is a surface under the crosshair, but it is beyond [TargetSelector.MAX_DISTANCE_METERS]. */
-    val tooFar: Boolean,
-)
+    /**
+     * Camera distance of the surface under the crosshair if it is beyond
+     * [TargetSelector.MAX_DISTANCE_METERS]: too imprecise to measure on, but good enough to tell
+     * what is in front of what. Null if the surface is in range or there is none.
+     */
+    val tooFarMeters: Float?,
+) {
+    /** True if there is a surface under the crosshair, but it is too far away to measure on. */
+    val tooFar: Boolean get() = tooFarMeters != null
+}
 
 /**
  * Chooses the surface under the crosshair from ARCore's usable hits (sorted nearest first).
@@ -14,7 +21,7 @@ class CrosshairTarget(
  * Far away, ARCore's plane and depth estimates are unreliable: points still land on the right
  * spot on screen, but at the wrong depth, and the measured distance is then mostly depth error
  * (a door measured from about 15 m came out at 14.8 m). Hits beyond [MAX_DISTANCE_METERS] are
- * therefore refused, so the user is asked to move closer instead.
+ * therefore refused; [FarTargeting] estimates such points from the camera height instead.
  */
 object TargetSelector {
 
@@ -35,8 +42,10 @@ object TargetSelector {
     const val PLANE_PREFERENCE_METERS = 0.1f
 
     fun select(hits: List<SurfaceHit>): CrosshairTarget {
-        val nearest = hits.firstOrNull() ?: return CrosshairTarget(hit = null, tooFar = false)
-        if (nearest.cameraDistanceMeters > MAX_DISTANCE_METERS) return CrosshairTarget(hit = null, tooFar = true)
+        val nearest = hits.firstOrNull() ?: return CrosshairTarget(hit = null, tooFarMeters = null)
+        if (nearest.cameraDistanceMeters > MAX_DISTANCE_METERS) {
+            return CrosshairTarget(hit = null, tooFarMeters = nearest.cameraDistanceMeters)
+        }
 
         val inRange = hits.filter { it.cameraDistanceMeters <= MAX_DISTANCE_METERS }
         val plane = inRange.firstOrNull { it.kind != HitKind.DEPTH }
@@ -44,6 +53,6 @@ object TargetSelector {
             plane != null &&
             plane.cameraDistanceMeters - nearest.cameraDistanceMeters <= PLANE_PREFERENCE_METERS
         ) plane else nearest
-        return CrosshairTarget(hit = chosen, tooFar = false)
+        return CrosshairTarget(hit = chosen, tooFarMeters = null)
     }
 }

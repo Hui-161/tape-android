@@ -9,6 +9,7 @@ import com.tape.measure.data.prefs.UserPreferencesRepository
 import com.tape.measure.data.repository.MeasurementRepository
 import com.tape.measure.domain.measure.AccuracyEstimator
 import com.tape.measure.domain.measure.ArError
+import com.tape.measure.domain.measure.FarTargeting
 import com.tape.measure.domain.measure.FrameSample
 import com.tape.measure.domain.measure.HitKind
 import com.tape.measure.domain.measure.SurfaceHit
@@ -16,7 +17,9 @@ import com.tape.measure.domain.measure.TrackedPoint
 import com.tape.measure.domain.measure.TrackingProblem
 import com.tape.measure.domain.measure.Vec3
 import com.tape.measure.domain.measure.identityMatrix
+import com.tape.measure.domain.measure.lookAtMatrix
 import com.tape.measure.domain.measure.perspectiveMatrix
+import com.tape.measure.domain.measure.translationMatrix
 import com.tape.measure.domain.model.UnitSystem
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -106,18 +109,45 @@ class MeasureViewModelTest {
         tracking: Boolean = true,
         problem: TrackingProblem = TrackingProblem.NONE,
         surfacesDetected: Boolean = true,
-        tooFar: Boolean = false,
+        tooFarMeters: Float? = null,
+        view: FloatArray = identityMatrix(),
+        groundHeight: Float? = null,
     ) = FrameSample(
         isTracking = tracking,
         problem = problem,
-        view = identityMatrix(),
+        view = view,
         projection = perspectiveMatrix(),
         width = 1000,
         height = 1000,
         surfacesDetected = surfacesDetected,
         crosshairHit = if (tracking) hit else null,
-        crosshairTooFar = tooFar,
+        crosshairTooFarMeters = tooFarMeters,
+        groundHeight = groundHeight,
+        createPointAt = { position -> FakePoint(position).also { createdPoints += it } },
     )
+
+    /** Phone held 1.5 m above the ground at y = 0, the crosshair on [target]. */
+    private fun aimingAt(target: Vec3) = lookAtMatrix(Vec3(0f, 1.5f, 0f), target)
+
+    /**
+     * A frame with the crosshair aimed at [target], beyond ARCore's range. If [surfaceSeen], ARCore
+     * sees a surface there, at the right distance but too imprecise to measure on.
+     */
+    private fun farFrame(target: Vec3, groundHeight: Float? = 0f, surfaceSeen: Boolean = true) = frame(
+        hit = null,
+        tooFarMeters = if (surfaceSeen) target.distanceTo(Vec3(0f, 1.5f, 0f)) else null,
+        view = aimingAt(target),
+        groundHeight = groundHeight,
+    )
+
+    private fun rayAt(target: Vec3) = FarTargeting.centerRay(aimingAt(target), perspectiveMatrix())
+
+    private fun assertVec(expected: Vec3, actual: Vec3?, tolerance: Float = 1e-3f) {
+        assertNotNull(actual)
+        assertEquals("x", expected.x, actual!!.x, tolerance)
+        assertEquals("y", expected.y, actual.y, tolerance)
+        assertEquals("z", expected.z, actual.z, tolerance)
+    }
 
     /** Aims the crosshair at [hit] and presses +. */
     private fun placeAt(hit: SurfaceHit) {
@@ -174,10 +204,10 @@ class MeasureViewModelTest {
     }
 
     @Test
-    fun surfaceTooFar_cannotBeMeasuredAndSaysSo() {
-        viewModel.onFrame(frame(hit = null, tooFar = true))
+    fun surfaceTooFarWithoutKnownGround_cannotBeMeasuredAndSaysSo() {
+        viewModel.onFrame(farFrame(Vec3(0f, 0f, -10f), groundHeight = null))
 
-        assertEquals(Guidance.TOO_FAR, ui.guidance)
+        assertEquals(Guidance.NEED_GROUND, ui.guidance)
         assertEquals(CrosshairState.TOO_FAR, overlay.crosshair)
         assertFalse(ui.canAddPoint)
 
@@ -187,13 +217,127 @@ class MeasureViewModelTest {
 
     @Test
     fun crosshairMovingOutOfRange_dropsTheLiveLine() {
-        placeAt(hitAt(0f))
-        viewModel.onFrame(frame(hit = null, tooFar = true))
+        placeAt(hitAt(0f, y = 0f, z = -3f, cameraDistance = 3.4f))
+        viewModel.onFrame(farFrame(Vec3(0f, 0f, -10f), groundHeight = null))
 
-        assertEquals(Guidance.TOO_FAR, ui.guidance)
+        assertEquals(Guidance.NEED_GROUND, ui.guidance)
         assertNull(overlay.segment)
         assertNull(overlay.distanceMeters)
         assertNotNull("the start point stays visible", overlay.pointA)
+    }
+
+    // ── Beyond ARCore's range ────────────────────────────────────────────────
+
+    @Test
+    fun distantGround_isEstimatedAndCanBePlaced() {
+        viewModel.onFrame(farFrame(Vec3(0f, 0f, -10f)))
+
+        assertEquals(Guidance.FAR_GROUND, ui.guidance)
+        assertEquals(CrosshairState.FAR_ESTIMATE, overlay.crosshair)
+        assertTrue(ui.canAddPoint)
+
+        viewModel.addPoint()
+        assertEquals(MeasurePhase.POINT_A, ui.phase)
+        assertVec(Vec3(0f, 0f, -10f), createdPoints.single().position)
+    }
+
+    @Test
+    fun distanceToADistantGroundPoint_includesItsEstimatedError() {
+        val start = hitAt(0f, y = 0f, z = -1f, cameraDistance = 1.8f)
+        viewModel.onFrame(frame(start, view = aimingAt(Vec3(0f, 0f, -1f)), groundHeight = 0f))
+        viewModel.addPoint()
+
+        viewModel.onFrame(farFrame(Vec3(0f, 0f, -10f)))
+
+        assertTrue(overlay.isLive)
+        assertEquals(9f, overlay.distanceMeters!!, 1e-3f)
+        val end = FarTargeting.groundTarget(rayAt(Vec3(0f, 0f, -10f)), 0f)!!.uncertaintyMeters
+        val expected = sqrt(start.uncertaintyMeters * start.uncertaintyMeters + end * end)
+        assertEquals(expected, overlay.accuracy!!.uncertaintyMeters, 1e-5f)
+
+        viewModel.addPoint()
+        viewModel.onFrame(farFrame(Vec3(0f, 0f, -20f)))
+        assertEquals(MeasurePhase.BOTH, ui.phase)
+        assertEquals(9f, overlay.distanceMeters!!, 1e-3f)
+        assertEquals(expected, overlay.accuracy!!.uncertaintyMeters, 1e-5f)
+    }
+
+    @Test
+    fun heightAboveADistantStartPoint_isEstimatedOnAVerticalPlane() {
+        viewModel.onFrame(farFrame(Vec3(0f, 0f, -15f)))
+        viewModel.addPoint()
+
+        viewModel.onFrame(farFrame(Vec3(0f, 2f, -15f)))
+
+        assertEquals(Guidance.FAR_VERTICAL, ui.guidance)
+        assertEquals(CrosshairState.FAR_ESTIMATE, overlay.crosshair)
+        assertEquals(2f, overlay.distanceMeters!!, 1e-3f)
+        // The start point's own error (±69 cm along the view) is part of the height's, not added.
+        val base = FarTargeting.groundTarget(rayAt(Vec3(0f, 0f, -15f)), 0f)!!
+        val top = FarTargeting.verticalTarget(rayAt(Vec3(0f, 2f, -15f)), base.position, base.uncertaintyMeters)!!
+        assertEquals(top.uncertaintyMeters, overlay.accuracy!!.uncertaintyMeters, 1e-5f)
+        assertTrue(overlay.accuracy!!.uncertaintyMeters < 0.1f)
+    }
+
+    @Test
+    fun distantTargetAboveTheHorizon_asksForItsBaseFirst() {
+        viewModel.onFrame(farFrame(Vec3(0f, 5f, -15f)))
+
+        assertEquals(Guidance.AIM_AT_BASE, ui.guidance)
+        assertEquals(CrosshairState.TOO_FAR, overlay.crosshair)
+        assertFalse(ui.canAddPoint)
+    }
+
+    @Test
+    fun wallInFrontOfTheGroundPoint_asksToAimAtItsBase() {
+        // Aiming at a wall 10 m away at knee height: the ground there would be 15 m away.
+        viewModel.onFrame(farFrame(Vec3(0f, 0.5f, -10f)))
+
+        assertEquals(Guidance.AIM_AT_BASE, ui.guidance)
+        assertEquals(CrosshairState.TOO_FAR, overlay.crosshair)
+        assertFalse(ui.canAddPoint)
+
+        // Where the wall meets the ground, ARCore and the estimate agree.
+        viewModel.onFrame(farFrame(Vec3(0f, 0f, -10f)))
+        assertEquals(Guidance.FAR_GROUND, ui.guidance)
+    }
+
+    @Test
+    fun groundBeyondTheMaximumDistance_isTooFar() {
+        viewModel.onFrame(farFrame(Vec3(0f, 0f, -40f), surfaceSeen = false))
+
+        assertEquals(Guidance.TOO_FAR, ui.guidance)
+        assertEquals(CrosshairState.TOO_FAR, overlay.crosshair)
+        assertFalse(ui.canAddPoint)
+    }
+
+    @Test
+    fun surfaceInRange_isPreferredToAnEstimate() {
+        val hit = hitAt(0.2f, y = 0f, z = -2f, cameraDistance = 2.5f)
+        viewModel.onFrame(frame(hit, view = aimingAt(Vec3(0f, 0f, -2f)), groundHeight = 0f))
+
+        assertEquals(CrosshairState.ON_SURFACE, overlay.crosshair)
+        assertEquals(Guidance.PLACE_START, ui.guidance)
+        viewModel.addPoint()
+        assertEquals(Vec3(0.2f, 0f, -2f), createdPoints.single().position)
+    }
+
+    @Test
+    fun walkingBetweenThePoints_addsTrackingDriftButHandTremorDoesNot() {
+        placeAt(hitAt(0f))
+        // Walk 10 m in 0.5 m steps, the phone swaying by 2 cm in between.
+        for (step in 1..20) {
+            viewModel.onFrame(frame(hit = null, view = translationMatrix(0f, 0f, 0.5f * step)))
+            viewModel.onFrame(frame(hit = null, view = translationMatrix(0.02f, 0f, 0.5f * step)))
+        }
+        viewModel.onFrame(frame(hitAt(0f, z = -11f), view = translationMatrix(0f, 0f, 10f)))
+        viewModel.addPoint()
+        viewModel.onFrame(frame(hit = null, view = translationMatrix(0f, 0f, 10f)))
+
+        val point = AccuracyEstimator.pointUncertainty(HitKind.PLANE_HORIZONTAL, 1f)
+        val end = AccuracyEstimator.withDrift(point, walkedMeters = 10f)
+        assertEquals(10f, overlay.distanceMeters!!, 1e-4f)
+        assertEquals(sqrt(point * point + end * end), overlay.accuracy!!.uncertaintyMeters, 1e-4f)
     }
 
     @Test

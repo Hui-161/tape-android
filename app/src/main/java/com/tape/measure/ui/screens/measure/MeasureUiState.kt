@@ -24,23 +24,37 @@ enum class Guidance {
     CAMERA_UNAVAILABLE,
     AR_STOPPED,
     FIND_SURFACE,
+
+    /** Too far to hit directly, and no ground detected to estimate from. */
+    NEED_GROUND,
+
+    /**
+     * Too far to hit directly, and not on the ground: a height needs its base point first, and
+     * the distance to a wall is measured where it meets the ground.
+     */
+    AIM_AT_BASE,
+
+    /** Beyond [com.tape.measure.domain.measure.FarTargeting.MAX_DISTANCE_METERS]. */
     TOO_FAR,
     AIM_AT_SURFACE,
     CLOSER_IS_MORE_ACCURATE,
+    FAR_GROUND,
+    FAR_VERTICAL,
     PLACE_START,
     PLACE_END,
     MEASURED,
     MEASURED_IMPRECISE,
 }
 
-enum class CrosshairState { HIDDEN, SEARCHING, TOO_FAR, ON_SURFACE }
+/** [FAR_ESTIMATE]: no surface in range, but a point can be estimated at the crosshair. */
+enum class CrosshairState { HIDDEN, SEARCHING, TOO_FAR, FAR_ESTIMATE, ON_SURFACE }
 
 /** Screen state that changes at most a few times per second. */
 data class MeasureUiState(
     val phase: MeasurePhase = MeasurePhase.IDLE,
     val guidance: Guidance = Guidance.STARTING,
     val isTracking: Boolean = false,
-    /** True while the crosshair is on a surface a point can be placed on. */
+    /** True while a point can be placed at the crosshair, on a surface or estimated from afar. */
     val canAddPoint: Boolean = false,
     val unitSystem: UnitSystem = UnitSystem.M,
     val isSaving: Boolean = false,
