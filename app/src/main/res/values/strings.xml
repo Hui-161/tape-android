@@ -10,6 +10,7 @@
     <string name="measure_guidance_camera_unavailable">Camera unavailable</string>
     <string name="measure_guidance_ar_stopped">AR tracking stopped – reopen the measure screen</string>
     <string name="measure_guidance_find_surface">Move your phone slowly to detect surfaces</string>
+    <string name="measure_guidance_too_far">Too far away – move closer (max. 5 m)</string>
     <string name="measure_guidance_aim_surface">Aim the crosshair at a detected surface</string>
     <string name="measure_guidance_place_start">Aim at the start point and tap +</string>
     <string name="measure_guidance_place_end">Aim at the end point and tap +</string>

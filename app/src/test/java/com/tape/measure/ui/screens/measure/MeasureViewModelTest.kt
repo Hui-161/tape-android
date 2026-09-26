@@ -106,6 +106,7 @@ class MeasureViewModelTest {
         tracking: Boolean = true,
         problem: TrackingProblem = TrackingProblem.NONE,
         surfacesDetected: Boolean = true,
+        tooFar: Boolean = false,
     ) = FrameSample(
         isTracking = tracking,
         problem = problem,
@@ -115,6 +116,7 @@ class MeasureViewModelTest {
         height = 1000,
         surfacesDetected = surfacesDetected,
         crosshairHit = if (tracking) hit else null,
+        crosshairTooFar = tooFar,
     )
 
     /** Aims the crosshair at [hit] and presses +. */
@@ -151,6 +153,29 @@ class MeasureViewModelTest {
         viewModel.onFrame(frame(hit = null, surfacesDetected = true))
         assertEquals(Guidance.AIM_AT_SURFACE, ui.guidance)
         assertFalse(ui.canAddPoint)
+    }
+
+    @Test
+    fun surfaceTooFar_cannotBeMeasuredAndSaysSo() {
+        viewModel.onFrame(frame(hit = null, tooFar = true))
+
+        assertEquals(Guidance.TOO_FAR, ui.guidance)
+        assertEquals(CrosshairState.TOO_FAR, overlay.crosshair)
+        assertFalse(ui.canAddPoint)
+
+        viewModel.addPoint()
+        assertEquals(MeasurePhase.IDLE, ui.phase)
+    }
+
+    @Test
+    fun crosshairMovingOutOfRange_dropsTheLiveLine() {
+        placeAt(hitAt(0f))
+        viewModel.onFrame(frame(hit = null, tooFar = true))
+
+        assertEquals(Guidance.TOO_FAR, ui.guidance)
+        assertNull(overlay.segment)
+        assertNull(overlay.distanceMeters)
+        assertNotNull("the start point stays visible", overlay.pointA)
     }
 
     @Test

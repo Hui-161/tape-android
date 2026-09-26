@@ -24,13 +24,14 @@ enum class Guidance {
     CAMERA_UNAVAILABLE,
     AR_STOPPED,
     FIND_SURFACE,
+    TOO_FAR,
     AIM_AT_SURFACE,
     PLACE_START,
     PLACE_END,
     MEASURED,
 }
 
-enum class CrosshairState { HIDDEN, SEARCHING, ON_SURFACE }
+enum class CrosshairState { HIDDEN, SEARCHING, TOO_FAR, ON_SURFACE }
 
 /** Screen state that changes at most a few times per second. */
 data class MeasureUiState(

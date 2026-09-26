@@ -324,7 +324,11 @@ private val CrosshairRadius = 20.dp
 private fun DrawScope.drawCrosshair(state: CrosshairState, dash: PathEffect) {
     if (state == CrosshairState.HIDDEN) return
     val onSurface = state == CrosshairState.ON_SURFACE
-    val color = if (onSurface) AmberTop else Color.White.copy(alpha = 0.6f)
+    val color = when (state) {
+        CrosshairState.ON_SURFACE -> AmberTop
+        CrosshairState.TOO_FAR -> ConfidenceLow
+        else -> Color.White.copy(alpha = 0.6f)
+    }
     val radius = CrosshairRadius.toPx()
     drawCircle(
         color = Color.Black.copy(alpha = 0.3f),
@@ -648,6 +652,7 @@ private fun Guidance.textRes(): Int = when (this) {
     Guidance.CAMERA_UNAVAILABLE -> R.string.measure_guidance_camera_unavailable
     Guidance.AR_STOPPED -> R.string.measure_guidance_ar_stopped
     Guidance.FIND_SURFACE -> R.string.measure_guidance_find_surface
+    Guidance.TOO_FAR -> R.string.measure_guidance_too_far
     Guidance.AIM_AT_SURFACE -> R.string.measure_guidance_aim_surface
     Guidance.PLACE_START -> R.string.measure_guidance_place_start
     Guidance.PLACE_END -> R.string.measure_guidance_place_end

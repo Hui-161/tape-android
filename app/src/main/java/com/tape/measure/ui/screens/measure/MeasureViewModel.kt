@@ -208,7 +208,11 @@ class MeasureViewModel @Inject constructor(
         val distance = if (startPos != null && segmentEnd != null) startPos.distanceTo(segmentEnd) else null
 
         return OverlayState(
-            crosshair = if (hit != null) CrosshairState.ON_SURFACE else CrosshairState.SEARCHING,
+            crosshair = when {
+                hit != null -> CrosshairState.ON_SURFACE
+                sample.crosshairTooFar -> CrosshairState.TOO_FAR
+                else -> CrosshairState.SEARCHING
+            },
             pointA = startPos?.let { project(sample, it) },
             pointB = endPos?.let { project(sample, it) },
             segment = if (startPos != null && segmentEnd != null) {
@@ -232,6 +236,7 @@ class MeasureViewModel @Inject constructor(
         val guidance = when {
             !sample.isTracking -> sample.problem.toGuidance()
             points.size >= 2 -> Guidance.MEASURED
+            hit == null && sample.crosshairTooFar -> Guidance.TOO_FAR
             hit == null && !sample.surfacesDetected -> Guidance.FIND_SURFACE
             hit == null -> Guidance.AIM_AT_SURFACE
             points.isEmpty() -> Guidance.PLACE_START

@@ -48,6 +48,8 @@ class FrameSample(
     /** True once ARCore has found at least one tracked plane. */
     val surfacesDetected: Boolean,
     val crosshairHit: SurfaceHit?,
+    /** True if the crosshair is on a surface that is too far away to measure on. */
+    val crosshairTooFar: Boolean = false,
 )
 
 /** Reasons the AR session could not start, reduced to what the user can act on. */

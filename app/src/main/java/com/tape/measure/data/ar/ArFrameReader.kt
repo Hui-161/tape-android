@@ -21,6 +21,7 @@ import com.tape.measure.domain.measure.FrameSample
 import com.tape.measure.domain.measure.HitKind
 import com.tape.measure.domain.measure.MeasureGeometry
 import com.tape.measure.domain.measure.SurfaceHit
+import com.tape.measure.domain.measure.TargetSelector
 import com.tape.measure.domain.measure.TrackedPoint
 import com.tape.measure.domain.measure.TrackingProblem
 import com.tape.measure.domain.measure.Vec3
@@ -61,7 +62,7 @@ class ArFrameReader {
         }
         camera.getViewMatrix(view, 0)
         camera.getProjectionMatrix(projection, 0, MeasureGeometry.NEAR_CLIP, MeasureGeometry.FAR_CLIP)
-        val hit = pickHit(frame.hitTest(width / 2f, height / 2f), camera.pose)
+        val target = TargetSelector.select(usableHits(frame.hitTest(width / 2f, height / 2f), camera.pose))
         return FrameSample(
             isTracking = true,
             problem = TrackingProblem.NONE,
@@ -69,30 +70,28 @@ class ArFrameReader {
             projection = projection.copyOf(),
             width = width,
             height = height,
-            surfacesDetected = hit != null ||
+            surfacesDetected = target.hit != null ||
                 session.getAllTrackables(Plane::class.java).any { it.trackingState == TrackingState.TRACKING },
-            crosshairHit = hit,
+            crosshairHit = target.hit,
+            crosshairTooFar = target.tooFar,
         )
     }
 
-    /** Hit results are sorted by distance; take the nearest one that is good enough to measure on. */
-    private fun pickHit(hits: List<HitResult>, cameraPose: Pose): SurfaceHit? {
-        for (hit in hits) {
-            val kind = when (val trackable = hit.trackable) {
-                is Plane -> if (isUsablePlaneHit(trackable, hit, cameraPose)) trackable.hitKind() else null
-                is DepthPoint ->
-                    if (depthEnabled && trackable.trackingState == TrackingState.TRACKING) HitKind.DEPTH else null
-                else -> null
-            } ?: continue
-            val pose = hit.hitPose
-            return SurfaceHit(
-                position = Vec3(pose.tx(), pose.ty(), pose.tz()),
-                kind = kind,
-                cameraDistanceMeters = hit.distance,
-                createPoint = { runCatching { AnchorPoint(hit.createAnchor()) }.getOrNull() },
-            )
-        }
-        return null
+    /** The hits that are good enough to measure on, nearest first like ARCore returns them. */
+    private fun usableHits(hits: List<HitResult>, cameraPose: Pose): List<SurfaceHit> = hits.mapNotNull { hit ->
+        val kind = when (val trackable = hit.trackable) {
+            is Plane -> if (isUsablePlaneHit(trackable, hit, cameraPose)) trackable.hitKind() else null
+            is DepthPoint ->
+                if (depthEnabled && trackable.trackingState == TrackingState.TRACKING) HitKind.DEPTH else null
+            else -> null
+        } ?: return@mapNotNull null
+        val pose = hit.hitPose
+        SurfaceHit(
+            position = Vec3(pose.tx(), pose.ty(), pose.tz()),
+            kind = kind,
+            cameraDistanceMeters = hit.distance,
+            createPoint = { runCatching { AnchorPoint(hit.createAnchor()) }.getOrNull() },
+        )
     }
 
     /**
