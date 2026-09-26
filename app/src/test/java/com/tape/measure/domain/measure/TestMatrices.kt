@@ -31,3 +31,27 @@ fun perspectiveMatrix(
     this[11] = -1f
     this[14] = 2f * far * near / (near - far)
 }
+
+/** Column-major view matrix of a camera at [eye] looking at [target], like gluLookAt. */
+fun lookAtMatrix(eye: Vec3, target: Vec3, up: Vec3 = Vec3(0f, 1f, 0f)): FloatArray {
+    val forward = (target - eye).normalized()
+    val side = cross(forward, up).normalized()
+    val cameraUp = cross(side, forward)
+    return FloatArray(16).apply {
+        this[0] = side.x
+        this[4] = side.y
+        this[8] = side.z
+        this[12] = -side.dot(eye)
+        this[1] = cameraUp.x
+        this[5] = cameraUp.y
+        this[9] = cameraUp.z
+        this[13] = -cameraUp.dot(eye)
+        this[2] = -forward.x
+        this[6] = -forward.y
+        this[10] = -forward.z
+        this[14] = forward.dot(eye)
+        this[15] = 1f
+    }
+}
+
+private fun cross(a: Vec3, b: Vec3) = Vec3(a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x)

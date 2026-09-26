@@ -2,6 +2,7 @@ package com.tape.measure.domain.measure
 
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import kotlin.math.sqrt
 
 class AccuracyEstimatorTest {
 
@@ -35,6 +36,13 @@ class AccuracyEstimatorTest {
         assertEquals(AccuracyLevel.GOOD, AccuracyEstimator.estimate(1f, 0.01f, 0.01f).level) // 1.4 %
         assertEquals(AccuracyLevel.FAIR, AccuracyEstimator.estimate(1f, 0.02f, 0.02f).level) // 2.8 %
         assertEquals(AccuracyLevel.POOR, AccuracyEstimator.estimate(0.1f, 0.01f, 0.01f).level) // 14 %
+    }
+
+    @Test
+    fun walking_addsOnePercentOfTheDistanceWalked() {
+        assertEquals(0.02f, AccuracyEstimator.withDrift(0.02f, walkedMeters = 0f), 1e-6f)
+        // ±2 cm at the end point, ±10 cm from walking 10 m.
+        assertEquals(sqrt(0.02f * 0.02f + 0.1f * 0.1f), AccuracyEstimator.withDrift(0.02f, walkedMeters = 10f), 1e-6f)
     }
 
     @Test
