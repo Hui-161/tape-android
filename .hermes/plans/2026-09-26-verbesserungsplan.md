@@ -1,7 +1,7 @@
 # Tape – Analyse & Verbesserungsplan
 
 **Datum:** 2026-09-26
-**Stand des Codes:** `cf01a06` („Complete core feature implementation …“)
+**Stand des Codes:** Analyse auf `cf01a06` („Complete core feature implementation …“); Runde 1 umgesetzt in `2fe682f`…`87faacd`
 **Status:** Vorschlag – alle Befunde und Maßnahmen sind fachlich zu prüfen, bevor sie umgesetzt oder produktiv eingesetzt werden.
 
 ---
@@ -15,6 +15,64 @@ nicht ladende Schriften, Material-Standardfarben (Violett) statt der Tape-Palett
 `INTERNET`-Berechtigung trotz „alles lokal“-Versprechen. Es gibt keine echten Tests und kein CI.
 
 Empfohlene Reihenfolge: **Test-/CI-Fundament → Kernfunktion reparieren → Messqualität → UX → Design → Datenschutz → Wartung.**
+
+**Update 2026-09-26:** Runde 1 ist umgesetzt, siehe Abschnitt 0.
+
+---
+
+## 0. Stand nach Runde 1 (2026-09-26)
+
+**Kontext (Rückmeldung):** allgemeines Maßband über die Kamera, live · private Nutzung · Gerät: Nothing Phone (4a) Plus
+mit Android 17. Damit entfallen Play-Store-Vorgaben, MDM und Firmenfreigaben; Priorität hat zuverlässiges Live-Messen auf
+diesem Gerät. Der Fadenkreuz-Modus (vorher optional in Phase 2) ist deshalb jetzt die Kernbedienung.
+
+**ARCore-Unterstützung des Geräts:** In der offiziellen Liste (developers.google.com/ar/devices, abgerufen am 2026-09-26)
+stehen *Nothing Phone (4a)* und *(4a) Pro*, jeweils mit Depth-API; ein *(4a) Plus* ist nicht aufgeführt. Prüfen: Lässt sich
+im Play Store „Google Play-Dienste für AR“ installieren, wird das Gerät unterstützt.
+
+**Umgesetzt in Runde 1:**
+
+| Befund | Stand |
+|---|---|
+| B1 Taps | behoben – Punkte per Fadenkreuz und „+“-Taste statt Tippen aufs Kamerabild |
+| B2 ARCore-Check | behoben – erneute Abfrage bei `UNKNOWN_CHECKING`; „unbekannt“ gilt nicht als „nicht unterstützt“ |
+| B3 Anker/Lebenszyklus | behoben – Punkte an die Session gebunden; Drehung ohne Session-Neustart (`configChanges`) |
+| B4 verspätete/stumme Taps | behoben – „+“ nur aktiv, wenn das Fadenkreuz auf einer Fläche liegt; Hinweise bei Tracking-Problemen |
+| B6 Genauigkeit | teilweise – distanzabhängiges Modell (±cm, Stufe); **Kalibrierung auf dem Gerät offen** |
+| B7 Wände/Depth/Hit-Test | behoben – horizontal und vertikal, Depth wenn verfügbar, `isPoseInPolygon` |
+| B8 INTERNET | behoben – gemergtes Manifest fordert nur noch die Kamera an |
+| B9 Speichern | teilweise – Rückmeldung, keine Duplikate; Label-Eingabe offen |
+| B10 Einheiten | behoben – der Chip speichert die Einheit app-weit |
+| B11 Onboarding | behoben – Start direkt im Messscreen, Back-Stack, Re-Check nach den Einstellungen |
+| B12 Farbrollen | behoben – abgesichert durch `ThemeColorRolesTest` |
+| B14 Tests | teilweise – 47 JVM-Unit-Tests; CI offen |
+| B18 Rekomposition | behoben – Zeichenzustand getrennt vom Screen-Zustand |
+| B19/B20 Details | teilweise – Label verdeckt das Fadenkreuz nicht, Display bleibt an, Haptik, dritter Punkt startet neu statt zu verwerfen |
+
+**Neuer Befund B21 – 16-KB-Speicherseiten:** `libfilament-jni.so`, `libfilament-utils-jni.so` und `libgltfio-jni.so` aus
+SceneView 2.2.1 (Filament 1.52.0) sind nur 4-KB-aligned; die ARCore- und AndroidX-Bibliotheken sind bereits 16-KB-aligned.
+Auf Geräten mit 16-KB-Kernel laden solche Bibliotheken nicht bzw. nur im Kompatibilitätsmodus. SceneView 2.3.3 bringt
+Filament 1.68.2 (16-KB-aligned, geprüft) und ARCore 1.52, setzt aber Kotlin 2.2, compileSdk 36, AndroidX core 1.17 und
+Compose 1.10 voraus, also ein Toolchain-Update. Die `ARScene`-API ist zwischen 2.2.1 und 2.3.3 bis auf einen Import identisch.
+
+**Runde 2 (Vorschlag):**
+1. Toolchain-Update inkl. SceneView 2.3.3 (B15, B21), compileSdk/targetSdk 36.
+2. IBM Plex lokal einbinden (B5), `statusBarColor` durch Edge-to-Edge-Konfiguration ersetzen.
+3. Alle Screens auf Deutsch (B16), Fuß/Zoll-Darstellung für imperiale Einheiten.
+4. Speichern mit Label; Saved-Liste: Tippen öffnet Aktionen, Löschen mit Undo, Genauigkeit anzeigen; Room-Schema exportieren und migrieren (B13).
+5. Genauigkeitsmodell mit Referenzmessungen auf dem Nothing Phone kalibrieren (B6).
+6. CI mit GitHub Actions (B14).
+
+**Gerätetest-Checkliste (Runde 1):**
+1. Erststart: Welcome → Kamera erlauben → Messscreen; ggf. Aufforderung, „Google Play-Dienste für AR“ zu installieren.
+2. Zweiter Start: Die App öffnet direkt den Messscreen.
+3. Handy langsam über Boden oder Tisch bewegen: Der Hinweis wechselt, das Fadenkreuz wird amber.
+4. „+“ setzt Punkt A (Vibration); eine gestrichelte Linie folgt live dem Fadenkreuz, mit Abstand und ±-Wert.
+5. „+“ setzt Punkt B, das Ergebnis steht fest; Speichern zeigt „Messung gespeichert“, der Eintrag erscheint in der Liste.
+6. Eine Wand oder einen Türrahmen anvisieren: Das Fadenkreuz wird auch auf senkrechten Flächen amber.
+7. Referenzmessung: eine bekannte Länge (z. B. 1 m Zollstock) messen, Anzeige und ±-Wert notieren.
+8. Handy drehen: Die Messung bleibt erhalten. Zu „Gespeichert“ und zurück: kein Absturz, die Messung beginnt neu.
+9. Einheiten-Chip antippen: Die Einheit wechselt, auch in der Liste.
 
 ---
 
@@ -225,11 +283,10 @@ Branches: `chore/abhaengigkeiten-update`, `chore/target-sdk-36`, `feat/lokalisie
 6. Doku: README für den Fork (Versionen, Repo-URL, Build-Schritte), `LICENSE` ergänzen (MIT-Text mit Original-Copyright; mit IT/Recht klären), lokale Pfade und doppelte HTML-Dateien entfernen (B19).
 7. Performance: Overlay-Zustand trennen (B18).
 
-### Fork-spezifisch (zu klären, bevor es in den Plan aufgenommen wird)
-- **Einsatzzweck:** Allgemeines Maßband oder konkret Lager/Logistik (z. B. Pakete/Paletten, Volumen L×B×H, Export)? Das bestimmt Prioritäten und die Frage, ob das Prinzip „One job“ erweitert wird.
-- **Zielgeräte:** ARCore-zertifiziert? Robuste Lager-/Scannergeräte sind es häufig nicht.
-- **Vertrieb:** Play Store oder MDM? ARCore benötigt „Google Play Services for AR“ aus dem Play Store.
-- **Datenschutz/IT-Sicherheit:** ARCore ist ein Google-Dienst; für den Firmeneinsatz ist eine Freigabe durch IT/Datenschutz zu empfehlen.
+### Fork-spezifisch (geklärt am 2026-09-26)
+- **Einsatzzweck:** allgemeines Maßband über die Kamera, live – das Prinzip „One job“ bleibt.
+- **Zielgerät:** Nothing Phone (4a) Plus mit Android 17; ARCore-Unterstützung siehe Abschnitt 0.
+- **Vertrieb:** private Nutzung per APK; Play-Store-Vorgaben und MDM entfallen.
 
 ---
 
