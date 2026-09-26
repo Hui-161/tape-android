@@ -27,6 +27,13 @@ class UnitSystemTest {
     }
 
     @Test
+    fun largeUncertainty_showsNoFalsePrecision() {
+        assertEquals("±33 cm", UnitSystem.M.formatUncertainty(0.327f, Locale.US))
+        assertEquals("±1,4 m", UnitSystem.M.formatUncertainty(1.428f, Locale.GERMANY))
+        assertEquals("±3.9 ft", UnitSystem.IN.formatUncertainty(1.2f, Locale.US))
+    }
+
+    @Test
     fun next_cyclesThroughAllUnits() {
         assertEquals(UnitSystem.M, UnitSystem.CM.next())
         assertEquals(UnitSystem.IN, UnitSystem.M.next())
