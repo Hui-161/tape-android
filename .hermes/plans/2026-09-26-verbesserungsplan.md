@@ -27,8 +27,8 @@ mit Android 17. Damit entfallen Play-Store-Vorgaben, MDM und Firmenfreigaben; Pr
 diesem Gerät. Der Fadenkreuz-Modus (vorher optional in Phase 2) ist deshalb jetzt die Kernbedienung.
 
 **ARCore-Unterstützung des Geräts:** In der offiziellen Liste (developers.google.com/ar/devices, abgerufen am 2026-09-26)
-stehen *Nothing Phone (4a)* und *(4a) Pro*, jeweils mit Depth-API; ein *(4a) Plus* ist nicht aufgeführt. Prüfen: Lässt sich
-im Play Store „Google Play-Dienste für AR“ installieren, wird das Gerät unterstützt.
+stehen *Nothing Phone (4a)* und *(4a) Pro*, jeweils mit Depth-API; ein *(4a) Plus* ist nicht aufgeführt. Der erste
+Gerätetest zeigt aber: ARCore läuft auf dem Gerät (Tracking und Live-Linie funktionieren).
 
 **Umgesetzt in Runde 1:**
 
@@ -48,6 +48,14 @@ im Play Store „Google Play-Dienste für AR“ installieren, wird das Gerät un
 | B14 Tests | teilweise – 47 JVM-Unit-Tests; CI offen |
 | B18 Rekomposition | behoben – Zeichenzustand getrennt vom Screen-Zustand |
 | B19/B20 Details | teilweise – Label verdeckt das Fadenkreuz nicht, Display bleibt an, Haptik, dritter Punkt startet neu statt zu verwerfen |
+
+**Erster Gerätetest (2026-09-26) und Korrekturen:**
+
+| Befund | Beobachtung | Korrektur |
+|---|---|---|
+| B22 Reichweite | Tür aus ca. 15 m gemessen: 14,84 m ±1,43 m. Die Punkte liegen auf dem Bildschirm richtig, aber in falscher Tiefe; der Abstand besteht fast nur aus Tiefenfehler. | `TargetSelector`: keine Punkte über 5 m (rotes Fadenkreuz, Hinweis „zu weit entfernt“); Ebenen bis 10 cm hinter einem Depth-Treffer werden bevorzugt (`8cb6f99`) |
+| B23 Label | Bei senkrechten Linien lag das Label auf der Linie und verdeckte den unteren Endpunkt. | Label neben der Linie entlang ihrer Normalen (Bemaßungsstil); verdeckt nie Fadenkreuz oder Endpunkte (`b0a81ef`) |
+| B24 Kontrast | Liste/Einstellungen-Symbole auf heller Fassade kaum sichtbar. | Dunkle Hinterlegung wie Badge/Einheiten-Chip, Verlauf hinter Statusleiste und HUD (`b0a81ef`) |
 
 **Neuer Befund B21 – 16-KB-Speicherseiten:** `libfilament-jni.so`, `libfilament-utils-jni.so` und `libgltfio-jni.so` aus
 SceneView 2.2.1 (Filament 1.52.0) sind nur 4-KB-aligned; die ARCore- und AndroidX-Bibliotheken sind bereits 16-KB-aligned.
@@ -70,7 +78,8 @@ Compose 1.10 voraus, also ein Toolchain-Update. Die `ARScene`-API ist zwischen 2
 4. „+“ setzt Punkt A (Vibration); eine gestrichelte Linie folgt live dem Fadenkreuz, mit Abstand und ±-Wert.
 5. „+“ setzt Punkt B, das Ergebnis steht fest; Speichern zeigt „Messung gespeichert“, der Eintrag erscheint in der Liste.
 6. Eine Wand oder einen Türrahmen anvisieren: Das Fadenkreuz wird auch auf senkrechten Flächen amber.
-7. Referenzmessung: eine bekannte Länge (z. B. 1 m Zollstock) messen, Anzeige und ±-Wert notieren.
+7. Referenzmessung aus 0,5–3 m Abstand: eine bekannte Länge (z. B. 1 m Zollstock) messen, Anzeige und ±-Wert notieren.
+   Aus mehr als 5 m Entfernung lassen sich keine Punkte setzen (Hinweis „zu weit entfernt“).
 8. Handy drehen: Die Messung bleibt erhalten. Zu „Gespeichert“ und zurück: kein Absturz, die Messung beginnt neu.
 9. Einheiten-Chip antippen: Die Einheit wechselt, auch in der Liste.
 
