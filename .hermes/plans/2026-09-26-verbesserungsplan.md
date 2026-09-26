@@ -17,6 +17,7 @@ nicht ladende Schriften, Material-Standardfarben (Violett) statt der Tape-Palett
 Empfohlene Reihenfolge: **Test-/CI-Fundament → Kernfunktion reparieren → Messqualität → UX → Design → Datenschutz → Wartung.**
 
 **Update 2026-09-26:** Runde 1 ist umgesetzt, siehe Abschnitt 0.
+**Update 2026-09-27:** Fernmessung über 5 m hinaus (B27), siehe Abschnitt 0.
 
 ---
 
@@ -65,6 +66,24 @@ ca. 5 m), Heizkörper 0,75 m (±3,5 cm); die Ergebnisse bleiben nach dem Setzen 
 | B25 Label-Bereich | Startpunkt unter dem Bildrand: Label über Hinweis und Speichern-Button (t = 7 s); Messung hinter dem Nutzer: Label über der Statusleiste (t = 18 s). | Label nur im freien Bereich zwischen HUD und Bedienleiste, am sichtbaren Teil der Linie (Liang-Barsky-Clipping); kein Label, wenn die Linie nicht sichtbar ist (`19c119f`) |
 | B26 Genauigkeits-Hinweise | Punkte aus 3,5–5 m gesetzt → meist „Geringe Genauigkeit“, ohne Hinweis, wie es besser geht. | Ziel weiter als 3 m: „Mit + setzen – aus der Nähe wird es genauer“; ungenaues Ergebnis: „Ungenau – aus der Nähe neu messen“ (`084ee40`) |
 
+**Rückmeldung „Max 5 m reicht mir nicht!“ – Fernmessung (B27, 2026-09-27):** Die ARCore-Tiefe bleibt über 5 m
+unzuverlässig (B22). Präzise sind dagegen die Kamerahöhe über dem in der Nähe erkannten Boden und die Neigung der Kamera,
+denn ARCore richtet die Welt am Schwerefeld aus. Daraus schätzt `FarTargeting` Punkte außerhalb der direkten Reichweite.
+Ein ARCore-Treffer innerhalb von 5 m hat immer Vorrang.
+
+| Fall | Vorgehen | Fehlerspanne laut Modell (1σ, Kamera 1,5 m hoch) |
+|---|---|---|
+| Fadenkreuz unter dem Horizont | Schnitt des Sichtstrahls mit der Bodenebene (niedrigste erkannte waagrechte Fläche, Kamera mindestens 0,8 m darüber), bis 30 m | t²/h·σα und t/h·σh: ±10 cm bei 5 m, ±33 cm bei 10 m, ±1,2 m bei 20 m |
+| Fadenkreuz über dem Horizont, Startpunkt gesetzt | Schnitt mit der senkrechten, zur Kamera gedrehten Ebene durch den Startpunkt → Höhe über dem Startpunkt | Türhöhe 2 m aus 15 m: ±7 cm (der Entfernungsfehler des Startpunkts geht nur mit tan β ein) |
+| Wand statt Fußpunkt anvisiert | ARCore sieht eine Fläche deutlich vor dem geschätzten Bodenpunkt (unter 70 % seiner Entfernung) → kein Punkt, Hinweis „Zu weit – auf den Fußpunkt am Boden zielen“ | – |
+| Gehen zwischen den Punkten | Weg der Kamera in 10-cm-Schritten (Handzittern zählt nicht); Drift von 1 % der Gehstrecke auf dem Endpunkt | 20 m gegangen: ±20 cm |
+
+Annahmen: ebener Boden bis zum Ziel; σα = 0,25° (Ausrichtung und Zielen), σh = 2 cm. Das sind Startwerte, die mit
+Referenzmessungen kalibriert werden müssen (B6). Schätzungen sind im UI erkennbar: gestricheltes amberfarbenes
+Fadenkreuz, Hinweise „Punkt auf ebenem Boden (geschätzt)“ bzw. „Höhe über dem Startpunkt (geschätzt)“. Große
+Fehlerspannen erscheinen als „±33 cm“ bzw. „±1,9 m“ statt „±142,8 cm“. Eine exponentielle Glättung dämpft das Zittern
+der Fernpunkte. 96 JVM-Unit-Tests, u. a. `FarTargetingTest` (`be3ca6f`, `6675a02`, `621f745`).
+
 **Neuer Befund B21 – 16-KB-Speicherseiten:** `libfilament-jni.so`, `libfilament-utils-jni.so` und `libgltfio-jni.so` aus
 SceneView 2.2.1 (Filament 1.52.0) sind nur 4-KB-aligned; die ARCore- und AndroidX-Bibliotheken sind bereits 16-KB-aligned.
 Auf Geräten mit 16-KB-Kernel laden solche Bibliotheken nicht bzw. nur im Kompatibilitätsmodus. SceneView 2.3.3 bringt
@@ -87,9 +106,13 @@ Compose 1.10 voraus, also ein Toolchain-Update. Die `ARScene`-API ist zwischen 2
 5. „+“ setzt Punkt B, das Ergebnis steht fest; Speichern zeigt „Messung gespeichert“, der Eintrag erscheint in der Liste.
 6. Eine Wand oder einen Türrahmen anvisieren: Das Fadenkreuz wird auch auf senkrechten Flächen amber.
 7. Referenzmessung aus 0,5–3 m Abstand: eine bekannte Länge (z. B. 1 m Zollstock) messen, Anzeige und ±-Wert notieren.
-   Aus mehr als 5 m Entfernung lassen sich keine Punkte setzen (Hinweis „zu weit entfernt“).
 8. Handy drehen: Die Messung bleibt erhalten. Zu „Gespeichert“ und zurück: kein Absturz, die Messung beginnt neu.
 9. Einheiten-Chip antippen: Die Einheit wechselt, auch in der Liste.
+10. Fernmessung (B27): erst den Boden in der Nähe erkennen lassen, dann einen Bodenpunkt in 10–20 m anvisieren
+    (gestricheltes amber Fadenkreuz) und mit „+“ setzen; danach senkrecht darüber zielen → Höhe (Tür, Fassade).
+    Mit bekannten Maßen vergleichen, Anzeige und ±-Wert notieren.
+11. Lange Strecke durch Gehen: Startpunkt setzen, zum Ziel gehen, Endpunkt aus der Nähe setzen; der ±-Wert wächst um
+    etwa 1 % der Gehstrecke.
 
 ---
 
@@ -331,6 +354,7 @@ Branches: `chore/abhaengigkeiten-update`, `chore/target-sdk-36`, `feat/lokalisie
 | B18 | Rekomposition pro Frame | P2 | klein–mittel | 6 |
 | B19 | Veraltete Doku/Kommentare, fehlende LICENSE | P2 | klein | 1/6 |
 | B20 | UX-Details | P2 | klein | 3 |
+| B27 | Messung über 5 m (Fernschätzung) | P1 | mittel | umgesetzt |
 
 ---
 
