@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -31,6 +32,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -48,6 +50,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
@@ -90,7 +93,9 @@ import com.tape.measure.ui.theme.InkBackground
 import com.tape.measure.ui.theme.TapeMeasurement
 import io.github.sceneview.ar.ARScene
 import kotlinx.coroutines.launch
+import kotlin.math.abs
 import kotlin.math.roundToInt
+import kotlin.math.sqrt
 
 /**
  * Core AR measurement screen: a live tape measure with a crosshair in the centre.
@@ -217,6 +222,15 @@ internal fun MeasureHud(
     val accuracyLevel by remember(overlay) { derivedStateOf { overlay().accuracy?.level } }
 
     Box(modifier = modifier.fillMaxSize()) {
+        // Keeps the status bar and the HUD readable over bright camera images.
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth()
+                .height(140.dp)
+                .background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.45f), Color.Transparent))),
+        )
+
         MeasurementOverlay(overlay = overlay, modifier = Modifier.fillMaxSize())
 
         DistanceLabel(overlay = overlay, unitSystem = uiState.unitSystem)
@@ -314,9 +328,11 @@ private fun MeasurementOverlay(
     }
 }
 
+private val PointRadius = 9.dp
+
 private fun DrawScope.drawMeasurePoint(position: Offset) {
-    drawCircle(color = Color.White.copy(alpha = 0.7f), radius = 9.dp.toPx(), center = position)
-    drawCircle(color = AmberBottom, radius = 7.dp.toPx(), center = position)
+    drawCircle(color = Color.White.copy(alpha = 0.7f), radius = PointRadius.toPx(), center = position)
+    drawCircle(color = AmberBottom, radius = PointRadius.toPx() - 2.dp.toPx(), center = position)
 }
 
 private val CrosshairRadius = 20.dp
@@ -362,8 +378,9 @@ private fun DistanceLabel(
     val segment = state.segment ?: return
     val distance = state.distanceMeters ?: return
     val density = LocalDensity.current
-    val gapPx = with(density) { 16.dp.roundToPx() }
-    val keepOutPx = with(density) { (CrosshairRadius + 12.dp).roundToPx() }
+    val gapPx = with(density) { 14.dp.roundToPx() }
+    val crosshairKeepOutPx = with(density) { (CrosshairRadius + 12.dp).roundToPx() }
+    val pointKeepOutPx = with(density) { PointRadius.roundToPx() }
 
     Surface(
         modifier = modifier.layout { measurable, constraints ->
@@ -375,7 +392,8 @@ private fun DistanceLabel(
                         labelSize = IntSize(placeable.width, placeable.height),
                         screenSize = IntSize(constraints.maxWidth, constraints.maxHeight),
                         gap = gapPx,
-                        crosshairKeepOut = keepOutPx,
+                        crosshairKeepOut = crosshairKeepOutPx,
+                        pointKeepOut = pointKeepOutPx,
                     ),
                 )
             }
@@ -407,9 +425,10 @@ private fun DistanceLabel(
 }
 
 /**
- * Where to put the distance label: centred above the line's midpoint, below it if that would
- * cover the crosshair, beside the crosshair as a last resort — always fully on screen. The
- * crosshair must stay visible, since it is what the user aims with.
+ * Where to put the distance label: beside the measuring line, like a dimension on a technical
+ * drawing. It tries the midpoint on the side above the line (right of a near-vertical line),
+ * then the other side, then a quarter along the line, and takes the first position that leaves
+ * the crosshair and both end points visible. The label always stays fully on screen.
  */
 internal fun distanceLabelPosition(
     segment: ScreenSegment,
@@ -417,30 +436,56 @@ internal fun distanceLabelPosition(
     screenSize: IntSize,
     gap: Int,
     crosshairKeepOut: Int,
+    pointKeepOut: Int,
 ): IntOffset {
-    val midX = (segment.start.x + segment.end.x) / 2f
-    val midY = (segment.start.y + segment.end.y) / 2f
-    val centre = IntOffset(screenSize.width / 2, screenSize.height / 2)
-    val keepOut = IntRect(
-        left = centre.x - crosshairKeepOut,
-        top = centre.y - crosshairKeepOut,
-        right = centre.x + crosshairKeepOut,
-        bottom = centre.y + crosshairKeepOut,
-    )
+    val start = segment.start
+    val end = segment.end
+    val dx = end.x - start.x
+    val dy = end.y - start.y
+    val length = sqrt(dx * dx + dy * dy)
+    // Unit normal of the line; a line of zero length gets its label above.
+    var normalX = if (length < 1f) 0f else -dy / length
+    var normalY = if (length < 1f) -1f else dx / length
+    val preferOtherSide = if (abs(normalY) > 0.3f) normalY > 0f else normalX < 0f
+    if (preferOtherSide) {
+        normalX = -normalX
+        normalY = -normalY
+    }
 
+    val centre = IntOffset(screenSize.width / 2, screenSize.height / 2)
+    val keepOut = listOf(
+        keepOutBox(centre.x.toFloat(), centre.y.toFloat(), crosshairKeepOut),
+        keepOutBox(start.x, start.y, pointKeepOut),
+        keepOutBox(end.x, end.y, pointKeepOut),
+    )
     fun onScreen(x: Float, y: Float) = IntOffset(
         x.roundToInt().coerceIn(0, (screenSize.width - labelSize.width).coerceAtLeast(0)),
         y.roundToInt().coerceIn(0, (screenSize.height - labelSize.height).coerceAtLeast(0)),
     )
-    fun IntOffset.coversCrosshair() = IntRect(this, labelSize).overlaps(keepOut)
+    fun IntOffset.isClear() = keepOut.none { IntRect(this, labelSize).overlaps(it) }
 
-    val x = midX - labelSize.width / 2f
-    val above = onScreen(x, midY - labelSize.height - gap)
-    if (!above.coversCrosshair()) return above
-    val below = onScreen(x, midY + gap)
-    if (!below.coversCrosshair()) return below
-    val besideX = if (midX < centre.x) keepOut.left - gap - labelSize.width.toFloat() else keepOut.right + gap.toFloat()
-    return onScreen(besideX, centre.y - labelSize.height / 2f)
+    val halfWidth = labelSize.width / 2f
+    val halfHeight = labelSize.height / 2f
+    for (along in floatArrayOf(0.5f, 0.25f, 0.75f)) {
+        val anchorX = start.x + dx * along
+        val anchorY = start.y + dy * along
+        for (side in floatArrayOf(1f, -1f)) {
+            val nx = normalX * side
+            val ny = normalY * side
+            // Keeps the whole label `gap` away from the line, whatever the line's angle.
+            val reach = gap + abs(nx) * halfWidth + abs(ny) * halfHeight
+            val candidate = onScreen(anchorX + nx * reach - halfWidth, anchorY + ny * reach - halfHeight)
+            if (candidate.isClear()) return candidate
+        }
+    }
+    // A very short line right at the crosshair: below the crosshair.
+    return onScreen(centre.x - halfWidth, centre.y + crosshairKeepOut + gap.toFloat())
+}
+
+private fun keepOutBox(x: Float, y: Float, radius: Int): IntRect {
+    val cx = x.roundToInt()
+    val cy = y.roundToInt()
+    return IntRect(cx - radius, cy - radius, cx + radius, cy + radius)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -482,18 +527,21 @@ private fun TopHud(
         Row(verticalAlignment = Alignment.CenterVertically) {
             UnitChip(unitSystem = unitSystem, onClick = onUnitTap)
             Spacer(Modifier.width(4.dp))
-            IconButton(onClick = onNavigateToSaved) {
+            // Same dark backing as the badge and chip: bare white icons vanish on bright scenes.
+            val hudIconColors = IconButtonDefaults.iconButtonColors(
+                containerColor = InkBackground.copy(alpha = 0.72f),
+                contentColor = Color.White,
+            )
+            IconButton(onClick = onNavigateToSaved, colors = hudIconColors) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Outlined.List,
                     contentDescription = stringResource(R.string.measure_open_saved),
-                    tint = Color.White.copy(alpha = 0.85f),
                 )
             }
-            IconButton(onClick = onNavigateToSettings) {
+            IconButton(onClick = onNavigateToSettings, colors = hudIconColors) {
                 Icon(
                     imageVector = Icons.Outlined.Settings,
                     contentDescription = stringResource(R.string.measure_open_settings),
-                    tint = Color.White.copy(alpha = 0.85f),
                 )
             }
         }
