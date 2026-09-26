@@ -26,9 +26,11 @@ enum class Guidance {
     FIND_SURFACE,
     TOO_FAR,
     AIM_AT_SURFACE,
+    CLOSER_IS_MORE_ACCURATE,
     PLACE_START,
     PLACE_END,
     MEASURED,
+    MEASURED_IMPRECISE,
 }
 
 enum class CrosshairState { HIDDEN, SEARCHING, TOO_FAR, ON_SURFACE }

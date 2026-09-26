@@ -22,6 +22,12 @@ object TargetSelector {
     const val MAX_DISTANCE_METERS = 5f
 
     /**
+     * Beyond this, a point on a plane is uncertain by more than about 4.5 cm, so the user is
+     * told that measuring from closer is more accurate. Placing a point is still allowed.
+     */
+    const val PRECISE_DISTANCE_METERS = 3f
+
+    /**
      * Fitted planes are more precise than single depth samples. A plane hit this close behind
      * the nearest depth hit is the same surface, and is used instead. A depth hit clearly in
      * front of the plane is an object standing on it, and is kept.

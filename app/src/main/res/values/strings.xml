@@ -12,9 +12,11 @@
     <string name="measure_guidance_find_surface">Move your phone slowly to detect surfaces</string>
     <string name="measure_guidance_too_far">Too far away – move closer (max. 5 m)</string>
     <string name="measure_guidance_aim_surface">Aim the crosshair at a detected surface</string>
+    <string name="measure_guidance_closer">Tap + to place – closer is more accurate</string>
     <string name="measure_guidance_place_start">Aim at the start point and tap +</string>
     <string name="measure_guidance_place_end">Aim at the end point and tap +</string>
     <string name="measure_guidance_measured">Save the result or tap + to measure again</string>
+    <string name="measure_guidance_measured_imprecise">Imprecise – measure again from closer</string>
 
     <!-- Measure screen: accuracy badge and distance label -->
     <string name="measure_accuracy_no_tracking">No tracking</string>

@@ -12,6 +12,7 @@ import com.tape.measure.domain.measure.ArError
 import com.tape.measure.domain.measure.FrameSample
 import com.tape.measure.domain.measure.MeasureGeometry
 import com.tape.measure.domain.measure.SurfaceHit
+import com.tape.measure.domain.measure.TargetSelector
 import com.tape.measure.domain.measure.TrackedPoint
 import com.tape.measure.domain.measure.TrackingProblem
 import com.tape.measure.domain.measure.Vec3
@@ -235,10 +236,13 @@ class MeasureViewModel @Inject constructor(
         val hit = sample.crosshairHit.takeIf { sample.isTracking }
         val guidance = when {
             !sample.isTracking -> sample.problem.toGuidance()
-            points.size >= 2 -> Guidance.MEASURED
+            points.size >= 2 ->
+                if (_overlay.value.accuracy?.level == AccuracyLevel.POOR) Guidance.MEASURED_IMPRECISE
+                else Guidance.MEASURED
             hit == null && sample.crosshairTooFar -> Guidance.TOO_FAR
             hit == null && !sample.surfacesDetected -> Guidance.FIND_SURFACE
             hit == null -> Guidance.AIM_AT_SURFACE
+            hit.cameraDistanceMeters > TargetSelector.PRECISE_DISTANCE_METERS -> Guidance.CLOSER_IS_MORE_ACCURATE
             points.isEmpty() -> Guidance.PLACE_START
             else -> Guidance.PLACE_END
         }

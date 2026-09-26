@@ -758,9 +758,11 @@ private fun Guidance.textRes(): Int = when (this) {
     Guidance.FIND_SURFACE -> R.string.measure_guidance_find_surface
     Guidance.TOO_FAR -> R.string.measure_guidance_too_far
     Guidance.AIM_AT_SURFACE -> R.string.measure_guidance_aim_surface
+    Guidance.CLOSER_IS_MORE_ACCURATE -> R.string.measure_guidance_closer
     Guidance.PLACE_START -> R.string.measure_guidance_place_start
     Guidance.PLACE_END -> R.string.measure_guidance_place_end
     Guidance.MEASURED -> R.string.measure_guidance_measured
+    Guidance.MEASURED_IMPRECISE -> R.string.measure_guidance_measured_imprecise
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

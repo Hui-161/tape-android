@@ -156,6 +156,24 @@ class MeasureViewModelTest {
     }
 
     @Test
+    fun farTarget_canBePlacedButSuggestsMovingCloser() {
+        viewModel.onFrame(frame(hitAt(0f, cameraDistance = 4f)))
+
+        assertEquals(Guidance.CLOSER_IS_MORE_ACCURATE, ui.guidance)
+        assertTrue(ui.canAddPoint)
+    }
+
+    @Test
+    fun impreciseResult_suggestsMeasuringAgainFromCloser() {
+        // Both points placed from 4.5 m for a 0.5 m distance: about ±9.5 cm, i.e. 19 %.
+        placeAt(hitAt(0f, cameraDistance = 4.5f))
+        placeAt(hitAt(0.5f, cameraDistance = 4.5f))
+        viewModel.onFrame(frame(hitAt(0f)))
+
+        assertEquals(Guidance.MEASURED_IMPRECISE, ui.guidance)
+    }
+
+    @Test
     fun surfaceTooFar_cannotBeMeasuredAndSaysSo() {
         viewModel.onFrame(frame(hit = null, tooFar = true))
 
