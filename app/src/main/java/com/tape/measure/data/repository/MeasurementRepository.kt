@@ -16,11 +16,6 @@ class MeasurementRepository @Inject constructor(
 
     suspend fun delete(entity: MeasurementEntity) = dao.delete(entity)
 
-    suspend fun rename(id: String, newLabel: String) {
-        // Room @Update requires the full entity, so we fetch by id first.
-        // getAll() is a Flow so we grab the current list synchronously via the DAO.
-    }
-
     suspend fun renameEntity(entity: MeasurementEntity, newLabel: String) =
         dao.update(entity.copy(label = newLabel.ifBlank { null }))
 }
