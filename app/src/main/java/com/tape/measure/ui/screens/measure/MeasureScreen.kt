@@ -44,6 +44,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -57,7 +58,9 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.boundsInParent
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -220,6 +223,9 @@ internal fun MeasureHud(
 ) {
     // Recompose the badge when the accuracy level changes, not on every frame.
     val accuracyLevel by remember(overlay) { derivedStateOf { overlay().accuracy?.level } }
+    // The distance label must stay in the free area between the top HUD and the controls.
+    var hudBottom by remember { mutableIntStateOf(0) }
+    var controlsTop by remember { mutableIntStateOf(Int.MAX_VALUE) }
 
     Box(modifier = modifier.fillMaxSize()) {
         // Keeps the status bar and the HUD readable over bright camera images.
@@ -233,12 +239,18 @@ internal fun MeasureHud(
 
         MeasurementOverlay(overlay = overlay, modifier = Modifier.fillMaxSize())
 
-        DistanceLabel(overlay = overlay, unitSystem = uiState.unitSystem)
+        DistanceLabel(
+            overlay = overlay,
+            unitSystem = uiState.unitSystem,
+            freeTop = { hudBottom },
+            freeBottom = { controlsTop },
+        )
 
         TopHud(
             modifier = Modifier
                 .align(Alignment.TopStart)
                 .fillMaxWidth()
+                .onGloballyPositioned { hudBottom = it.boundsInParent().bottom.roundToInt() }
                 .statusBarsPadding()
                 .padding(horizontal = 16.dp, vertical = 8.dp),
             badge = badgeFor(uiState.isTracking, accuracyLevel),
@@ -269,6 +281,7 @@ internal fun MeasureHud(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
+                    .onGloballyPositioned { controlsTop = it.boundsInParent().top.roundToInt() }
                     .navigationBarsPadding()
                     .padding(horizontal = 24.dp, vertical = 24.dp),
                 guidance = uiState.guidance,
@@ -364,13 +377,15 @@ private fun DrawScope.drawCrosshair(state: CrosshairState, dash: PathEffect) {
 private fun ScreenPoint.toOffset() = Offset(x, y)
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Distance label at the midpoint of the line
+// Distance label beside the line
 // ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
 private fun DistanceLabel(
     overlay: () -> OverlayState,
     unitSystem: UnitSystem,
+    freeTop: () -> Int,
+    freeBottom: () -> Int,
     modifier: Modifier = Modifier,
 ) {
     // Small leaf that recomposes at frame rate while a line is shown.
@@ -386,16 +401,22 @@ private fun DistanceLabel(
         modifier = modifier.layout { measurable, constraints ->
             val placeable = measurable.measure(constraints.copy(minWidth = 0, minHeight = 0))
             layout(placeable.width, placeable.height) {
-                placeable.place(
-                    distanceLabelPosition(
-                        segment = segment,
-                        labelSize = IntSize(placeable.width, placeable.height),
-                        screenSize = IntSize(constraints.maxWidth, constraints.maxHeight),
-                        gap = gapPx,
-                        crosshairKeepOut = crosshairKeepOutPx,
-                        pointKeepOut = pointKeepOutPx,
-                    ),
+                val freeArea = IntRect(
+                    left = 0,
+                    top = freeTop().coerceIn(0, constraints.maxHeight),
+                    right = constraints.maxWidth,
+                    bottom = freeBottom().coerceIn(0, constraints.maxHeight),
                 )
+                // Left unplaced, and so not drawn, while no part of the line is visible.
+                distanceLabelPosition(
+                    segment = segment,
+                    labelSize = IntSize(placeable.width, placeable.height),
+                    freeArea = freeArea,
+                    crosshair = IntOffset(constraints.maxWidth / 2, constraints.maxHeight / 2),
+                    gap = gapPx,
+                    crosshairKeepOut = crosshairKeepOutPx,
+                    pointKeepOut = pointKeepOutPx,
+                )?.let { placeable.place(it) }
             }
         },
         shape = RoundedCornerShape(8.dp),
@@ -426,22 +447,27 @@ private fun DistanceLabel(
 
 /**
  * Where to put the distance label: beside the measuring line, like a dimension on a technical
- * drawing. It tries the midpoint on the side above the line (right of a near-vertical line),
- * then the other side, then a quarter along the line, and takes the first position that leaves
- * the crosshair and both end points visible. The label always stays fully on screen.
+ * drawing, and only inside [freeArea] (between the top HUD and the controls). Only the part of
+ * the line inside [freeArea] counts, so a line running off screen is labelled next to its
+ * visible part. Returns null when no part of the line is visible: then there is no label.
+ *
+ * It tries the midpoint of the visible part on the side above the line (right of a near-vertical
+ * line), then the other side, then a quarter along, and takes the first position that leaves the
+ * crosshair and both end points visible.
  */
 internal fun distanceLabelPosition(
     segment: ScreenSegment,
     labelSize: IntSize,
-    screenSize: IntSize,
+    freeArea: IntRect,
+    crosshair: IntOffset,
     gap: Int,
     crosshairKeepOut: Int,
     pointKeepOut: Int,
-): IntOffset {
-    val start = segment.start
-    val end = segment.end
-    val dx = end.x - start.x
-    val dy = end.y - start.y
+): IntOffset? {
+    val visible = clipSegment(segment, freeArea) ?: return null
+    val start = visible.start
+    val dx = visible.end.x - start.x
+    val dy = visible.end.y - start.y
     val length = sqrt(dx * dx + dy * dy)
     // Unit normal of the line; a line of zero length gets its label above.
     var normalX = if (length < 1f) 0f else -dy / length
@@ -452,15 +478,14 @@ internal fun distanceLabelPosition(
         normalY = -normalY
     }
 
-    val centre = IntOffset(screenSize.width / 2, screenSize.height / 2)
     val keepOut = listOf(
-        keepOutBox(centre.x.toFloat(), centre.y.toFloat(), crosshairKeepOut),
-        keepOutBox(start.x, start.y, pointKeepOut),
-        keepOutBox(end.x, end.y, pointKeepOut),
+        keepOutBox(crosshair.x.toFloat(), crosshair.y.toFloat(), crosshairKeepOut),
+        keepOutBox(segment.start.x, segment.start.y, pointKeepOut),
+        keepOutBox(segment.end.x, segment.end.y, pointKeepOut),
     )
-    fun onScreen(x: Float, y: Float) = IntOffset(
-        x.roundToInt().coerceIn(0, (screenSize.width - labelSize.width).coerceAtLeast(0)),
-        y.roundToInt().coerceIn(0, (screenSize.height - labelSize.height).coerceAtLeast(0)),
+    fun inFreeArea(x: Float, y: Float) = IntOffset(
+        x.roundToInt().coerceIn(freeArea.left, (freeArea.right - labelSize.width).coerceAtLeast(freeArea.left)),
+        y.roundToInt().coerceIn(freeArea.top, (freeArea.bottom - labelSize.height).coerceAtLeast(freeArea.top)),
     )
     fun IntOffset.isClear() = keepOut.none { IntRect(this, labelSize).overlaps(it) }
 
@@ -474,12 +499,43 @@ internal fun distanceLabelPosition(
             val ny = normalY * side
             // Keeps the whole label `gap` away from the line, whatever the line's angle.
             val reach = gap + abs(nx) * halfWidth + abs(ny) * halfHeight
-            val candidate = onScreen(anchorX + nx * reach - halfWidth, anchorY + ny * reach - halfHeight)
+            val candidate = inFreeArea(anchorX + nx * reach - halfWidth, anchorY + ny * reach - halfHeight)
             if (candidate.isClear()) return candidate
         }
     }
     // A very short line right at the crosshair: below the crosshair.
-    return onScreen(centre.x - halfWidth, centre.y + crosshairKeepOut + gap.toFloat())
+    return inFreeArea(crosshair.x - halfWidth, crosshair.y + crosshairKeepOut + gap.toFloat())
+}
+
+/** Clips [segment] to [bounds] (Liang–Barsky); null if the segment misses the rectangle. */
+internal fun clipSegment(segment: ScreenSegment, bounds: IntRect): ScreenSegment? {
+    val x0 = segment.start.x
+    val y0 = segment.start.y
+    val dx = segment.end.x - x0
+    val dy = segment.end.y - y0
+    val p = floatArrayOf(-dx, dx, -dy, dy)
+    val q = floatArrayOf(x0 - bounds.left, bounds.right - x0, y0 - bounds.top, bounds.bottom - y0)
+    var enter = 0f
+    var leave = 1f
+    for (i in 0..3) {
+        if (p[i] == 0f) {
+            // Parallel to this edge: outside it means outside the rectangle.
+            if (q[i] < 0f) return null
+        } else {
+            val t = q[i] / p[i]
+            if (p[i] < 0f) {
+                if (t > leave) return null
+                if (t > enter) enter = t
+            } else {
+                if (t < enter) return null
+                if (t < leave) leave = t
+            }
+        }
+    }
+    return ScreenSegment(
+        ScreenPoint(x0 + dx * enter, y0 + dy * enter),
+        ScreenPoint(x0 + dx * leave, y0 + dy * leave),
+    )
 }
 
 private fun keepOutBox(x: Float, y: Float, radius: Int): IntRect {
