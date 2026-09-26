@@ -57,6 +57,14 @@ Gerätetest zeigt aber: ARCore läuft auf dem Gerät (Tracking und Live-Linie fu
 | B23 Label | Bei senkrechten Linien lag das Label auf der Linie und verdeckte den unteren Endpunkt. | Label neben der Linie entlang ihrer Normalen (Bemaßungsstil); verdeckt nie Fadenkreuz oder Endpunkte (`b0a81ef`) |
 | B24 Kontrast | Liste/Einstellungen-Symbole auf heller Fassade kaum sichtbar. | Dunkle Hinterlegung wie Badge/Einheiten-Chip, Verlauf hinter Statusleiste und HUD (`b0a81ef`) |
 
+**Zweiter Gerätetest (Bildschirmvideo, 2026-09-26):** Türhöhe 1,90 m (±7,5 cm, aus ca. 3,5 m) bzw. 1,87 m (±12,1 cm, aus
+ca. 5 m), Heizkörper 0,75 m (±3,5 cm); die Ergebnisse bleiben nach dem Setzen stabil. Referenzmaße stehen noch aus.
+
+| Befund | Beobachtung | Korrektur |
+|---|---|---|
+| B25 Label-Bereich | Startpunkt unter dem Bildrand: Label über Hinweis und Speichern-Button (t = 7 s); Messung hinter dem Nutzer: Label über der Statusleiste (t = 18 s). | Label nur im freien Bereich zwischen HUD und Bedienleiste, am sichtbaren Teil der Linie (Liang-Barsky-Clipping); kein Label, wenn die Linie nicht sichtbar ist (`19c119f`) |
+| B26 Genauigkeits-Hinweise | Punkte aus 3,5–5 m gesetzt → meist „Geringe Genauigkeit“, ohne Hinweis, wie es besser geht. | Ziel weiter als 3 m: „Mit + setzen – aus der Nähe wird es genauer“; ungenaues Ergebnis: „Ungenau – aus der Nähe neu messen“ (`084ee40`) |
+
 **Neuer Befund B21 – 16-KB-Speicherseiten:** `libfilament-jni.so`, `libfilament-utils-jni.so` und `libgltfio-jni.so` aus
 SceneView 2.2.1 (Filament 1.52.0) sind nur 4-KB-aligned; die ARCore- und AndroidX-Bibliotheken sind bereits 16-KB-aligned.
 Auf Geräten mit 16-KB-Kernel laden solche Bibliotheken nicht bzw. nur im Kompatibilitätsmodus. SceneView 2.3.3 bringt
